@@ -1,18 +1,20 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import EmployeeProfiles from './pages/hr/EmployeeProfiles';
-// 导入其他页面...
+import VisaStatus from './pages/hr/VisaStatus'
+import HiringManagement from './pages/hr/HiringManagement';
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* 1. 默认首页，你可以暂时让它重定向到 profiles */}
+        {/* 1. 默认首页 */}
         <Route path="/" element={<Navigate to="/hr/profiles" />} />
 
         {/* 2. HR 的员工列表页 */}
         <Route path="/hr/profiles" element={<EmployeeProfiles />} />
+        <Route path="/hr/visa" element={<VisaStatus />} />
+        <Route path="/hr/hiring" element={<HiringManagement />} />
 
-        {/* 3. 预留：员工详情页 (下一部分我们要写的) */}
         {/* <Route path="/hr/employee/:id" element={<EmployeeDetail />} /> */}
 
         {/* 4. 404 页面 */}

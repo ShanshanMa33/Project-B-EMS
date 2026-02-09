@@ -6,7 +6,7 @@ const Layout = ({ children, activePage }) => {
     return (
         <Box sx={{ 
             display: 'flex', 
-            bgcolor: '#f4f7f9',
+            bgcolor: '#F8F9FF',
             minHeight: '100vh',
         }}>
             {/* 1. Sidebar */}

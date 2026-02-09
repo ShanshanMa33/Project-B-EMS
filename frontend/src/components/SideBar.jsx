@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Paper, Typography, List, ListItem, ListItemButton, ListItemIcon, ListItemText } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 import DashboardIcon from '@mui/icons-material/Dashboard'; 
 import PeopleIcon from '@mui/icons-material/People';     
@@ -15,21 +16,22 @@ const Sidebar = ({ activePage }) => {
         { text: 'Dashboard', path: '/hr/dashboard', icon: <DashboardIcon /> },
         { text: 'Employee Profiles', path: '/hr/profiles', icon: <PeopleIcon /> },
         { text: 'Visa Status', path: '/hr/visa', icon: <AssignmentIndIcon /> },
-        { text: 'Hiring', path: '/hr/hiring', icon: <PersonAddIcon /> },
+        { text: 'Hiring Management', path: '/hr/hiring', icon: <PersonAddIcon /> },
     ];
 
     return (
         <Paper 
             elevation={0} 
             sx={{ 
-                width: 300, 
+                width: 250, 
                 height: '100vh',
                 borderRadius: 0,
                 display: 'flex', 
                 flexDirection: 'column', 
                 p: 3,
                 bgcolor: 'white',
-                borderRight: '1px solid #f1f5f9'
+                borderRight: '1px solid #f1f5f9',
+                borderRadius: '24px'
             }}
         >
             {/* 1. Logo */}
@@ -112,7 +114,14 @@ const Sidebar = ({ activePage }) => {
                     </ListItemIcon>
                     <ListItemText 
                         primary="Logout" 
-                        primaryTypographyProps={{ fontWeight: 500, fontSize: '0.95rem' }} 
+                        slotProps={{
+                            primary: {
+                              sx: {
+                                fontWeight: 500,
+                                fontSize: '0.95rem'
+                              }
+                            }
+                          }}
                     />
                 </ListItemButton>
             </Box>
