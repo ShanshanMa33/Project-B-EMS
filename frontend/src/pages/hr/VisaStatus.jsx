@@ -3,13 +3,12 @@ import {
   Box, Paper, Table, TableBody, TableCell, TableContainer, 
   TableHead, TableRow, Typography, Button, IconButton, Chip, Tabs, Tab 
 } from '@mui/material';
+import { useDispatch, useSelector } from 'react-redux';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
-import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import SendIcon from '@mui/icons-material/Send'; // Action Icon
-import VisibilityIcon from '@mui/icons-material/Visibility'; // View Icon
 
 import Layout from '../../components/Layout';
 import PageHeader from '../../components/PageHeader';
@@ -17,30 +16,26 @@ import StatCard from '../../components/StatCard';
 import SearchBar from '../../components/SearchBar';
 import TableFilter from '../../components/TableFilter';
 import CustomPagination from '../../components/CustomPagination';
+import { fetchHRVisaRows, sendHRVisaReminderThunk } from '../../store/hrSlice';
 
 const VisaStatus = () => {
+    const dispatch = useDispatch();
+    const visaRows = useSelector((state) => state.hr.visaRows);
+    const actionLoading = useSelector((state) => state.hr.actionLoading);
     // 1. 状态管理
     const [tabValue, setTabValue] = useState(0); // 0: In Progress, 1: All Status
     const [search, setSearch] = useState('');
     const [filterType, setFilterType] = useState('All');
     const [page, setPage] = useState(1);
+    const [sendingId, setSendingId] = useState('');
     const rowsPerPage = 5;
 
-    // --- Mock Data---
-    const inProgressList = [
-        { id: 101, name: 'Kazuha Kaedehara', title: 'F1(OPT)', nextStep: 'Wait for OPT Receipt', action: 'Send Reminder', daysLeft: 89 },
-        { id: 102, name: 'Ayaka Kamisato', title: 'H1-B', nextStep: 'Upload I-797 Approval', action: 'Review Document', daysLeft: 120 },
-        { id: 103, name: 'Thoma', title: 'F1(STEM)', nextStep: 'Submit I-983 Form', action: 'Send Notification', daysLeft: 45 },
-    ];
+    useEffect(() => {
+        dispatch(fetchHRVisaRows());
+    }, [dispatch]);
 
-    const allVisaList = [
-        { id: 1, name: 'Zhongli', title: 'Citizen', startDate: '-', endDate: '-', daysLeft: 9999 },
-        { id: 2, name: 'Raiden Shogun', title: 'H1-B', startDate: '2023-01-01', endDate: '2026-06-30', daysLeft: 400 },
-        { id: 3, name: 'Nahida', title: 'F1(OPT)', startDate: '2023-05-15', endDate: '2024-05-14', daysLeft: 0 }, // Expired
-        { id: 4, name: 'Venti', title: 'F1(OPT)', startDate: '2023-02-01', endDate: '2026-03-10', daysLeft: 30 }, // Expiring
-        { id: 5, name: 'Furina', title: 'H1-B', startDate: '2024-01-01', endDate: '2026-12-31', daysLeft: 600 },
-        ...inProgressList
-    ];
+    const inProgressList = visaRows.filter((row) => row.daysLeft !== null && row.daysLeft >= 0 && row.daysLeft <= 180);
+    const allVisaList = visaRows;
 
     const handleTabChange = (event, newValue) => {
         setTabValue(newValue);
@@ -61,6 +56,27 @@ const VisaStatus = () => {
     const totalPages = Math.ceil(filteredData.length / rowsPerPage);
     const paginatedData = filteredData.slice((page - 1) * rowsPerPage, (page - 1) * rowsPerPage + rowsPerPage);
 
+    const handleSendReminder = async (row) => {
+        if (!row?.email || sendingId || actionLoading) {
+            if (!row?.email) alert('No email found for this employee');
+            return;
+        }
+        setSendingId(row.id);
+        try {
+            await dispatch(sendHRVisaReminderThunk({
+                email: row.email,
+                name: row.name,
+                nextStep: row.nextStep,
+            })).unwrap();
+            alert(`Reminder sent to ${row.email}`);
+        } catch (err) {
+            console.error('Send reminder failed:', err);
+            alert('Failed to send reminder');
+        } finally {
+            setSendingId('');
+        }
+    };
+
     return (
         <Layout activePage="Visa Status">
             <PageHeader title="Visa Status Management" subtitle="HR Portal / Visa Status" />
@@ -68,7 +84,7 @@ const VisaStatus = () => {
             <Box sx={{ display: 'flex', gap: 3, mb: 4 }}>
                 <StatCard title="All Records" count={allVisaList.length} icon={<BusinessCenterIcon fontSize="small" sx={{ color: '#059669' }}/>} />
                 <StatCard title="In Progress" count={inProgressList.length} icon={<AssignmentIcon fontSize="small" sx={{ color: '#4338ca' }}/>} />
-                <StatCard title="Expiring Soon" count={3} icon={<AccessTimeIcon fontSize="small" sx={{ color: '#d97706' }}/>} />
+                <StatCard title="Expiring Soon" count={visaRows.filter((r) => r.daysLeft !== null && r.daysLeft >= 0 && r.daysLeft <= 100).length} icon={<AccessTimeIcon fontSize="small" sx={{ color: '#d97706' }}/>} />
                 
             </Box>
 
@@ -157,6 +173,8 @@ const VisaStatus = () => {
                                                     variant="outlined" 
                                                     size="small" 
                                                     startIcon={<SendIcon />}
+                                                    disabled={sendingId === row.id || actionLoading}
+                                                    onClick={() => handleSendReminder(row)}
                                                     sx={{ 
                                                         textTransform: 'none', 
                                                         borderRadius: '8px',

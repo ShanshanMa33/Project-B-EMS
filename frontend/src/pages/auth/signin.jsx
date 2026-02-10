@@ -15,8 +15,8 @@ export default function SignIn() {
     const onSubmit = async () => {
         const res = await dispatch(signIn({ username, password }));
         if (signIn.fulfilled.match(res)) {
-            const role = res.payload.user.role;
-            navigate(role === "hr" ? "dashoboard/hr" : "dashboard/employee");
+            const role = String(res.payload.user?.role || "").toLowerCase();
+            navigate(role === "hr" ? "/hr/dashboard" : "/dashboard/employee");
         }
     };
 

@@ -20,7 +20,7 @@ exports.updateEmployeeProfile = async (req, res, next) => {
         const profile = await employeeProfile.findOneAndUpdate(
             { user: req.user._id },
             { $set: updates },
-            { new: true, runValidators: true }
+            { new: true, runValidators: true, upsert: true, setDefaultsOnInsert: true }
         );
 
         res.json(profile);

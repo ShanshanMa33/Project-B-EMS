@@ -1,114 +1,62 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, CircularProgress} from '@mui/material';
+import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
 import PublicIcon from '@mui/icons-material/Public';
 import PeopleAltIcon from '@mui/icons-material/PeopleAlt';
 import StatCard from '../../components/StatCard';
 import TableFilter from '../../components/TableFilter';
-import axios from 'axios';
 import Layout from '../../components/Layout';
 import PageHeader from '../../components/PageHeader'; 
 import StatusBadge from '../../components/StatusBadge';
 import SearchBar from '../../components/SearchBar';
 import CustomPagination from '../../components/CustomPagination';
+import { fetchHRProfiles } from '../../store/hrSlice';
 
 
 const EmployeeProfiles = () => {
-    const [employees, setEmployees] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const dispatch = useDispatch();
+    const navigate = useNavigate();
+    const employees = useSelector((state) => state.hr.profiles);
+    const loading = useSelector((state) => state.hr.profilesLoading);
     const [search, setSearch] = useState('');
     const [filterType, setFilterType] = useState('All');
     const [page, setPage] = useState(1);
 
     const rowsPerPage = 6;
 
-
-    // --- 假数据 (Mock Data) ---
-    const mockEmployees = [
-        { _id: '1', name: 'Zhongli', ssn: '123-45-6789', title: 'Citizen', phone: '555-0101', email: 'zhongli@liyue.com' },
-        { _id: '2', name: 'Raiden Shogun', ssn: '987-65-4321', title: 'H1-B', phone: '555-0202', email: 'raiden@inazuma.com' },
-        { _id: '3', name: 'Nahida', ssn: '111-22-3333', title: 'F1(OPT)', phone: '555-0303', email: 'nahida@sumeru.com' },
-        { _id: '4', name: 'Venti', ssn: '444-55-6666', title: 'Citizen', phone: '555-0404', email: 'venti@mondstadt.com' },
-        { _id: '5', name: 'Furina', ssn: '777-88-9999', title: 'H1-B', phone: '555-0505', email: 'furina@fontaine.com' },
-        { _id: '6', name: 'Neuvillette', ssn: '123-12-1234', title: 'H1-B', phone: '555-0606', email: 'neuvi@court.com' },
-        { _id: '7', name: 'Navia', ssn: '321-32-4321', title: 'Citizen', phone: '555-0707', email: 'navia@spina.com' },
-        { _id: '8', name: 'Ayaka Kamisato', ssn: '555-66-7777', title: 'Citizen', phone: '555-0808', email: 'ayaka@yashiro.com' },
-        { _id: '9', name: 'Kazuha Kaedehara', ssn: '888-99-0000', title: 'F1(OPT)', phone: '555-0909', email: 'kazuha@crux.com' },
-        { _id: '10', name: 'Hu Tao', ssn: '101-01-0101', title: 'Citizen', phone: '555-1010', email: 'hutao@wangsheng.com' },
-        { _id: '11', name: 'Xiao', ssn: '202-02-0202', title: 'H1-B', phone: '555-1111', email: 'xiao@adepti.com' },
-        { _id: '12', name: 'Ganyu', ssn: '303-03-0303', title: 'Green Card', phone: '555-1212', email: 'ganyu@qixing.com' },
-        { _id: '13', name: 'Keqing', ssn: '404-04-0404', title: 'Citizen', phone: '555-1313', email: 'keqing@qixing.com' },
-        { _id: '14', name: 'Tartaglia', ssn: '505-05-0505', title: 'H1-B', phone: '555-1414', email: 'childe@fatui.com' },
-        { _id: '15', name: 'Yae Miko', ssn: '606-06-0606', title: 'F1(OPT)', phone: '555-1515', email: 'yae@publish.com' },
-        { _id: '16', name: 'Arlecchino', ssn: '707-07-0707', title: 'Green Card', phone: '555-1616', email: 'father@hearth.com' },
-    ];
-    // --- Data Fetching Logic ---
-    // const fetchEmployees = async (query = '') => {
-    //     try {
-    //         const token = localStorage.getItem('token'); 
-    //         const response = await axios.get(`http://localhost:8000/api/hr/profiles?search=${query}`, {
-    //             headers: { Authorization: `Bearer ${token}` }
-    //         });
-    //         setEmployees(response.data);
-    //     } catch (error) {
-    //         console.error("Fetch error:", error);
-    //     }
-    // };
-
-    const fetchEmployees = async (searchTerm = '') => {
-        setLoading(true);
-        try {
-            const token = localStorage.getItem('token');
-            const response = await axios.get(`http://localhost:3000/api/employees`, {
-                params: { search: searchTerm },
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            const data = response.data.employees || response.data || [];
-            if(Array.isArray(data) && data.length > 0) {
-                setEmployees(data);
-            } else {
-                throw new Error("Empty data"); 
-            }
-        } catch (err) {
-            console.log("👉 进入演示模式：使用假数据");
-            const filtered = mockEmployees.filter(e => 
-                e.name.toLowerCase().includes(searchTerm.toLowerCase())
-            );
-            setEmployees(filtered);
-        } finally {
-            setLoading(false);
-        }
-    };
-
     useEffect(() => {
-        fetchEmployees();
-    }, [search]);
-
-    useEffect(() => {
-        setPage(1);
-    }, [search, filterType]);
+        dispatch(fetchHRProfiles(search));
+    }, [dispatch, search]);
 
     const onSearchChange = (e) => {
         const value = e.target.value;
         setSearch(value);
-        fetchEmployees(value); 
+        setPage(1);
     };
 
-    const displayedEmployees = employees.filter(emp => {
+    const displayedEmployees = employees.filter((emp) => {
         if (filterType === 'All') return true;
-        const authTitle = emp.title || emp.workAuthorization?.title || '';
+        const authTitle = emp.title || '';
         return authTitle.includes(filterType);
     });
 
     const totalCount = employees.length;
-    const citizenCount = employees.filter(e => (e.title || e.workAuthorization?.title) === 'Citizen').length;
+    const citizenCount = employees.filter((e) => e.title === 'Citizen').length;
     const nonCitizenCount = totalCount - citizenCount;
 
     const totalPages = Math.ceil(displayedEmployees.length / rowsPerPage);
     const startIndex = (page - 1) * rowsPerPage;
     const paginatedEmployees = displayedEmployees.slice(startIndex, startIndex + rowsPerPage);
+    const resultCountLabel =
+        displayedEmployees.length === 0
+            ? 'No records found'
+            : displayedEmployees.length === 1
+                ? '1 record found'
+                : `${displayedEmployees.length} records found`;
 
-    const handlePageChange = (event, value) => {
+    const handlePageChange = (_, value) => {
         setPage(value);
     };
 
@@ -148,6 +96,9 @@ const EmployeeProfiles = () => {
                             ({displayedEmployees.length})
                         </span>
                     </Typography>
+                    <Typography sx={{ color: '#64748b', fontSize: '0.875rem' }}>
+                        {resultCountLabel}
+                    </Typography>
          
                 </Box>
 
@@ -164,7 +115,10 @@ const EmployeeProfiles = () => {
                     label="Work Auth"
                     options={['Citizen', 'H1-B', 'F1(OPT)', 'Green Card']}
                     value={filterType}
-                    onChange={(e) => setFilterType(e.target.value)}
+                    onChange={(e) => {
+                        setFilterType(e.target.value);
+                        setPage(1);
+                    }}
                 />
                 </Box>
                 </Box>              
@@ -190,7 +144,9 @@ const EmployeeProfiles = () => {
                                     cursor: 'pointer', transition: 'all 0.2s',
                                     '& td': { borderBottom: '1px solid #f8fafc' },
                                     '&:hover': { bgcolor: '#f8fafc' }
-                                }}>
+                                }}
+                                onClick={() => navigate(`/hr/profiles/${emp._id}`)}
+                                >
                                     <TableCell sx={{ fontWeight: 600, color: '#1e293b', py: 2.5 }}>
                                         {emp.name}
                                     </TableCell>
@@ -204,6 +160,13 @@ const EmployeeProfiles = () => {
                                     <TableCell sx={{ color: '#64748b' }}>{emp.email}</TableCell>
                                 </TableRow>
                             ))}
+                            {!loading && paginatedEmployees.length === 0 && (
+                                <TableRow>
+                                    <TableCell colSpan={5} align="center" sx={{ py: 5, color: '#64748b' }}>
+                                        No employee profiles found
+                                    </TableCell>
+                                </TableRow>
+                            )}
                         </TableBody>
                     </Table>
                 </TableContainer>

@@ -24,7 +24,7 @@ export const createOnboarding = createAsyncThunk("onboarding/create", async (pay
 // Async thunk to update onboarding application status
 export const updateOnboarding = createAsyncThunk("onboarding/update", async ({ id, status }, thunkAPI) => {
     try {
-        const response = await api.put(`api/onboarding/${id}`, { status });
+        const response = await api.put(`/api/onboarding/${id}`, { status });
         return response.data;
     } catch (error) {
         return thunkAPI.rejectWithValue(error.response.data.message || { message: "Failed to update onboarding" });

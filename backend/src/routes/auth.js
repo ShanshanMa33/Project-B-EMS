@@ -1,10 +1,11 @@
 const router = require('express').Router();
-const { signIn, me } = require('../controllers/auth');
+const { signIn, me, registerWithToken } = require('../controllers/auth');
 const { authenticateToken } = require('../middleware/auth');
 
-// User sign-in route
+// User login route
+router.post('/login', signIn);
 router.post('/signin', signIn);
-router.post('/login', signIn); // Alias for sign-in
+router.post('/register-with-token', registerWithToken);
 
 // Get current authenticated user
 router.get('/me', authenticateToken, me);

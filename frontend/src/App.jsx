@@ -1,27 +1,46 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import EmployeeProfiles from './pages/hr/EmployeeProfiles';
-import VisaStatus from './pages/hr/VisaStatus'
-import HiringManagement from './pages/hr/HiringManagement';
+import { Routes, Route, Navigate } from "react-router-dom";
 
-function App() {
-  return (
-    <BrowserRouter>
-      <Routes>
-        {/* 1. 默认首页 */}
-        <Route path="/" element={<Navigate to="/hr/profiles" />} />
+import ProtectedRoute from "./routes/protectedRoute";
 
-        {/* 2. HR 的员工列表页 */}
-        <Route path="/hr/profiles" element={<EmployeeProfiles />} />
-        <Route path="/hr/visa" element={<VisaStatus />} />
-        <Route path="/hr/hiring" element={<HiringManagement />} />
+import EmployeeDashboard from "./pages/employee/dashboard";
+import EmployeeProfile from "./pages/employee/profile";
+import EmployeeVisaStatus from "./pages/employee/visaStatus";
+import Onboarding from "./pages/employee/onboarding";
+import EmployeeHome from "./pages/employee/home";
+import SignIn from "./pages/auth/signin";
+import Unauthorized from "./pages/unauthorized";
 
-        {/* <Route path="/hr/employee/:id" element={<EmployeeDetail />} /> */}
+import HrEmployeeProfiles from "./pages/hr/EmployeeProfiles";
+import EmployeeProfileDetail from "./pages/hr/EmployeeProfileDetail";
+import HrVisaStatus from "./pages/hr/VisaStatus";
+import HiringManagement from "./pages/hr/HiringManagement";
+import HrDashboard from "./pages/hr/DashBoard";
 
-        {/* 4. 404 页面 */}
-        <Route path="*" element={<h1>404 Page Not Found</h1>} />
-      </Routes>
-    </BrowserRouter>
-  );
+export default function App() {
+    return (
+        <Routes>
+            <Route path="/signin" element={<SignIn />} />
+            <Route path="/" element={<Navigate to="/signin" replace />} />
+
+            <Route element={<ProtectedRoute allowRoles={["employee"]} />}>
+                <Route path="/dashboard/employee" element={<EmployeeDashboard />}>
+                    <Route index element={<EmployeeHome />} />
+                    <Route path="profile" element={<EmployeeProfile />} />
+                    <Route path="visaStatus" element={<EmployeeVisaStatus />} />
+                    <Route path="onboarding" element={<Onboarding />} />
+                </Route>
+            </Route>
+
+            <Route element={<ProtectedRoute allowRoles={["hr"]} />}>
+                <Route path="/hr/profiles" element={<HrEmployeeProfiles />} />
+                <Route path="/hr/profiles/:userId" element={<EmployeeProfileDetail />} />
+                <Route path="/hr/visa" element={<HrVisaStatus />} />
+                <Route path="/hr/hiring" element={<HiringManagement />} />
+                <Route path="/hr/dashboard" element={<HrDashboard />} />
+            </Route>
+
+            <Route path="/unauthorized" element={<Unauthorized />} />
+            <Route path="*" element={<Navigate to="/signin" replace />} />
+        </Routes>
+    );
 }
-
-export default App;

@@ -3,6 +3,7 @@ import authReducer from "./authSlice";
 import profileReducer from "./profileSlice";
 import onboardingReducer from "./onboardingSlice";
 import visaReducer from "./visaSlice";
+import hrReducer from "./hrSlice";
 
 const store = configureStore({
     reducer: {
@@ -10,6 +11,7 @@ const store = configureStore({
         profile: profileReducer,
         onboarding: onboardingReducer,
         visa: visaReducer,
+        hr: hrReducer,
     },
 });
 
