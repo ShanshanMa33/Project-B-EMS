@@ -1,8 +1,8 @@
 const User = require('../models/users');
 const { signToken } = require('../middleware/auth');
 
-// User login controller
-async function login(req, res) {
+// User sign-in controller
+async function signIn(req, res) {
     const { username, password } = req.body;
 
     // Validate input
@@ -36,6 +36,6 @@ async function me(req, res) {
 }
 
 module.exports = {
-    login,
+    signIn,
     me,
 };
