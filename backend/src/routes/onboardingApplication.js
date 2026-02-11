@@ -8,6 +8,16 @@ const { getMyApplication, createOrUpdateMyApplication, updateMyOnboardingApplica
     uploadOnboardingDoc, downloadOnboardingDoc, previewOnboardingDoc, deleteOnboardingDoc
 } = require('../controllers/onboardingApplication');
 
+// Handle multer upload errors for onboarding documents
+const handleUploadOnboarding = (req, res, next) => {
+    uploadOnboarding.single('file')(req, res, (err) => {
+        if (err) {
+            return res.status(400).json({ message: err.message || 'Upload failed' });
+        }
+        return next();
+    });
+};
+
 // Employee routes for onboarding application
 router.get('/', authenticateToken, authorizeRoles('employee'), ctrl.getMyApplication);
 router.post('/', authenticateToken, authorizeRoles('employee'), ctrl.createOrUpdateMyApplication);
@@ -15,8 +25,8 @@ router.post('/', authenticateToken, authorizeRoles('employee'), ctrl.createOrUpd
 router.put('/', authenticateToken, authorizeRoles('employee'), ctrl.updateMyOnboardingApplication);
 
 // Document upload/download routes
-router.post('/documents', authenticateToken, authorizeRoles('employee'), uploadOnboarding.single('file'), ctrl.uploadOnboardingDoc);
-router.put('/documents', authenticateToken, authorizeRoles('employee'), uploadOnboarding.single('file'), ctrl.uploadOnboardingDoc);
+router.post('/documents', authenticateToken, authorizeRoles('employee'), handleUploadOnboarding, ctrl.uploadOnboardingDoc);
+router.put('/documents', authenticateToken, authorizeRoles('employee'), handleUploadOnboarding, ctrl.uploadOnboardingDoc);
 // Document download/preview routes
 router.get('/documents/:docId', authenticateToken, authorizeRoles('employee'), ctrl.downloadOnboardingDoc);
 router.get('/documents/:docId/preview', authenticateToken, authorizeRoles('employee'), ctrl.previewOnboardingDoc);

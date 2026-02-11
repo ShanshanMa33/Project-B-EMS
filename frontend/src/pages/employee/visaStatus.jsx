@@ -205,16 +205,16 @@ export default function VisaStatus() {
 
                                 {DOCS.map((doc) => (
                                     <Box key={doc.key} sx={{ mb: 2 }}>
-                                        <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 700 }}>
-                                            {doc.label}
-                                        </Typography>
-
-                                        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1, flexWrap: "wrap" }}>
-                                            <Typography variant="body2" color="text.secondary">
-                                                {getDocName(doc.key) || "No file uploaded"}
+                                        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+                                            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                                {doc.label}
                                             </Typography>
                                             {renderStatusButton(doc.key)}
                                         </Stack>
+
+                                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                                            {getDocName(doc.key) || "No file uploaded"}
+                                        </Typography>
 
                                         {doc.key === "I-983" && (
                                             <Stack direction="row" spacing={2} sx={{ mb: 1, flexWrap: "wrap" }}>

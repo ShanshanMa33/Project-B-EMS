@@ -110,8 +110,10 @@ async function openOrDownloadDoc({ docId, mode, fileName }) {
             : `${API_BASE}/documents/${docId}`;
 
     const res = await api.get(endpoint, { responseType: "blob" });
+    const contentType = res?.headers?.["content-type"] || "application/pdf";
+    const blob = res.data instanceof Blob ? res.data : new Blob([res.data], { type: contentType });
+    const url = window.URL.createObjectURL(blob);
 
-    const url = window.URL.createObjectURL(new Blob([res.data]));
     if (mode === "preview") {
         window.open(url, "_blank", "noopener,noreferrer");
         setTimeout(() => window.URL.revokeObjectURL(url), 60_000); // Revoke after 1 min

@@ -31,5 +31,19 @@ app.use((req, res) => {
     res.status(404).json({ message: 'Endpoint not found' });
 });
 
+// Error handler
+app.use((err, req, res, next) => {
+    if (err?.name === 'ValidationError') {
+        return res.status(400).json({ message: err.message });
+    }
+    if (err?.name === 'MulterError') {
+        return res.status(400).json({ message: err.message });
+    }
+
+    const status = err.status || err.statusCode || 500;
+    const message = err.message || 'Internal Server Error';
+    console.error('API error:', err);
+    res.status(status).json({ message });
+});
 
 module.exports = app;
