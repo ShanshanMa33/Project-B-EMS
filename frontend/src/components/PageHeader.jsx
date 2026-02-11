@@ -5,10 +5,12 @@ import { useSelector } from 'react-redux';
 
 const PageHeader = ({ title, subtitle }) => {
     const { user } = useSelector((state) => state.auth);
-    // Get display name
-    const displayName = user?.name || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'User';
-    // Get role label
-    const roleLabel = user?.role === 'hr' ? 'HR' : 'Employee';
+    // Prefer username from auth payload, then fall back to other name fields.
+    const fullName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim();
+    const displayName = user?.username || user?.name || fullName || user?.email || 'User';
+    // Normalize role so HR/Employee is always shown correctly.
+    const normalizedRole = String(user?.role || '').toLowerCase();
+    const roleLabel = normalizedRole === 'hr' ? 'HR' : 'Employee';
     // Get initials for avatar
     const initials = displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2).toUpperCase();
 

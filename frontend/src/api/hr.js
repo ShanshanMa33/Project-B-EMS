@@ -13,6 +13,12 @@ export const sendHRInvitation = (data) => {
     });
 };
 
+export const getHRInvitationHistory = () => {
+    return axios.get(`${API_BASE}/invitation-history`, {
+        headers: authHeaders(),
+    });
+};
+
 export const getHRApplications = () => {
     return axios.get(`${API_BASE}/onboarding/all`, {
         headers: authHeaders(),
@@ -25,9 +31,9 @@ export const getHRApplicationDetail = (userId) => {
     });
 };
 
-export const getHRProfiles = (search = '') => {
+export const getHRProfiles = ({ search = '', workAuth = '', page = 1, pageSize = 6 } = {}) => {
     return axios.get(`${API_BASE}/profiles`, {
-        params: { search },
+        params: { search, workAuth, page, pageSize },
         headers: authHeaders(),
     });
 };
@@ -49,3 +55,21 @@ export const sendHRVisaNotification = (payload) => {
         headers: authHeaders(),
     });
 };
+
+export const reviewHRVisaDocument = (payload) => {
+    return axios.put(`${API_BASE}/visa/review`, payload, {
+        headers: authHeaders(),
+    });
+};
+
+export const getHRDocumentPreviewUrl = (userId, docKey) =>
+    `${API_BASE}/documents/${userId}/${docKey}/preview`;
+
+export const getHRDocumentDownloadUrl = (userId, docKey) =>
+    `${API_BASE}/documents/${userId}/${docKey}/download`;
+
+export const getHRVisaDocumentPreviewUrl = (userId, docId) =>
+    `${API_BASE}/visa-documents/${userId}/${docId}/preview`;
+
+export const getHRVisaDocumentDownloadUrl = (userId, docId) =>
+    `${API_BASE}/visa-documents/${userId}/${docId}/download`;

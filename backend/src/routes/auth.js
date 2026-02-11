@@ -3,7 +3,6 @@ const { signIn, me, registerWithToken } = require('../controllers/auth');
 const { authenticateToken } = require('../middleware/auth');
 
 // User login route
-router.post('/login', signIn);
 router.post('/signin', signIn);
 router.post('/register-with-token', registerWithToken);
 

@@ -18,6 +18,10 @@ router.put('/onboarding/review', hrController.reviewApplication);
 
 // 3. Employee Profiles
 router.get('/profiles', hrController.getAllEmployees);
+router.get('/documents/:userId/:docKey/preview', hrController.previewEmployeeDocument);
+router.get('/documents/:userId/:docKey/download', hrController.downloadEmployeeDocument);
+router.get('/visa-documents/:userId/:docId/preview', hrController.previewVisaCaseDocument);
+router.get('/visa-documents/:userId/:docId/download', hrController.downloadVisaCaseDocument);
 
 // 4. Visa Management
 router.get('/visa/all', hrController.getAllVisaStatus);

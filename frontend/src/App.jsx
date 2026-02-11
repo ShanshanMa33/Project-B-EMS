@@ -9,6 +9,7 @@ import Onboarding from "./pages/employee/onboarding";
 import EmployeeHome from "./pages/employee/home";
 import SignIn from "./pages/auth/signin";
 import Unauthorized from "./pages/unauthorized";
+import Layout from "./components/Layout";
 
 import HrEmployeeProfiles from "./pages/hr/EmployeeProfiles";
 import EmployeeProfileDetail from "./pages/hr/EmployeeProfileDetail";
@@ -34,6 +35,14 @@ export default function App() {
             <Route element={<ProtectedRoute allowRoles={["hr"]} />}>
                 <Route path="/hr/profiles" element={<HrEmployeeProfiles />} />
                 <Route path="/hr/profiles/:userId" element={<EmployeeProfileDetail />} />
+                <Route
+                    path="/hr/profile"
+                    element={(
+                        <Layout activePage="My Profile">
+                            <EmployeeProfile />
+                        </Layout>
+                    )}
+                />
                 <Route path="/hr/visa" element={<HrVisaStatus />} />
                 <Route path="/hr/hiring" element={<HiringManagement />} />
                 <Route path="/hr/dashboard" element={<HrDashboard />} />

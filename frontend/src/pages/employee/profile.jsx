@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Alert, Col, Form, Input, Row, message } from "antd";
 import { Box, Card, CardContent } from "@mui/material";
@@ -9,44 +9,44 @@ import { fetchProfile, updateProfile } from "../../store/profileSlice";
 
 export default function Profile() {
     const dispatch = useDispatch();
-    // Fetch profile data from Redux store
     const { profile, loading, error } = useSelector((state) => state.profile);
 
-    // Forms for different sections
     const [basicForm] = Form.useForm();
     const [contactForm] = Form.useForm();
     const [emergencyForm] = Form.useForm();
 
     useEffect(() => {
-        // Fetch profile data on component mount
         dispatch(fetchProfile());
     }, [dispatch]);
 
     const buildBasicPayload = (values) => ({
-        firstname: values.firstName,
-        lastname: values.lastName,
+        firstName: values.firstName,
+        lastName: values.lastName,
+        middleName: values.middleName,
         preferredName: values.preferredName,
+        position: values.position,
     });
 
     const basicInitialValues = useMemo(() => {
         return {
             firstName: profile?.firstName || "",
             lastName: profile?.lastName || "",
+            middleName: profile?.middleName || "",
             preferredName: profile?.preferredName || "",
-            title: profile?.title || "",
-            department: profile?.department || "",
+            position: profile?.position || "",
         };
     }, [profile]);
 
     const contactInitialValues = useMemo(() => {
         return {
             email: profile?.email || "",
-            phone: profile?.phone || "",
+            phone: profile?.phones?.cell || "",
+            workPhone: profile?.phones?.work || "",
             addressLine1: profile?.address?.line1 || "",
             addressLine2: profile?.address?.line2 || "",
             city: profile?.address?.city || "",
             state: profile?.address?.state || "",
-            zip: profile?.address?.zip || "",
+            zip: profile?.address?.zipCode || profile?.address?.zip || "",
         };
     }, [profile]);
 
@@ -73,52 +73,74 @@ export default function Profile() {
     ]);
 
     const cardSx = useMemo(() => ({
-        boarderRadius: "16px",
+        borderRadius: "16px",
         bgcolor: "white",
         boxShadow: "0px 2px 10px rgba(0, 0, 0, 0.02)",
     }), []);
 
     const saveBasic = async () => {
-        const values = await basicForm.validateFields();
-        const payload = buildBasicPayload(values);
-        await dispatch(updateProfile(payload)).unwrap();
-        message.success("Basic info saved");
-        return true; // return true to exit edit mode
+        try {
+            const values = await basicForm.validateFields();
+            const payload = buildBasicPayload(values);
+            await dispatch(updateProfile(payload)).unwrap();
+            await dispatch(fetchProfile()).unwrap();
+            message.success("Basic info saved");
+            return true;
+        } catch (err) {
+            message.error(err?.message || "Failed to save basic info");
+            throw err;
+        }
     };
 
     const saveContact = async () => {
-        const values = await contactForm.validateFields();
+        try {
+            const values = await contactForm.validateFields();
 
-        const payload = {
-            email: values.email,
-            phone: values.phone,
-            address: {
-                line1: values.addressLine1,
-                line2: values.addressLine2,
-                city: values.city,
-                state: values.state,
-                zip: values.zip,
-            },
-        };
+            const payload = {
+                email: values.email,
+                phones: {
+                    cell: values.phone || "",
+                    work: values.workPhone || "",
+                },
+                address: {
+                    line1: values.addressLine1,
+                    line2: values.addressLine2,
+                    city: values.city,
+                    state: values.state,
+                    zipCode: values.zip,
+                },
+            };
 
-        await dispatch(updateProfile(payload)).unwrap();
-        message.success("Contact info saved");
+            await dispatch(updateProfile(payload)).unwrap();
+            await dispatch(fetchProfile()).unwrap();
+            message.success("Contact info saved");
+            return true;
+        } catch (err) {
+            message.error(err?.message || "Failed to save contact info");
+            throw err;
+        }
     };
 
     const saveEmergency = async () => {
-        const values = await emergencyForm.validateFields();
+        try {
+            const values = await emergencyForm.validateFields();
 
-        const payload = {
-            emergencyContact: {
-                name: values.contactName,
-                phone: values.contactPhone,
-                relationship: values.relationship,
-            },
-        };
+            const payload = {
+                emergencyContact: {
+                    name: values.contactName,
+                    phone: values.contactPhone,
+                    relationship: values.relationship,
+                },
+            };
 
-        await dispatch(updateProfile(payload)).unwrap();
-        message.success("Emergency contact saved");
-        setEditEmergency(false);
+            await dispatch(updateProfile(payload)).unwrap();
+            await dispatch(fetchProfile()).unwrap();
+            message.success("Emergency contact saved");
+            return true;
+        } catch (err) {
+            message.error(err?.message || "Failed to save emergency contact");
+            throw err;
+        }
     };
 
     return (
@@ -180,6 +202,18 @@ export default function Profile() {
                                             <Input placeholder="Preferred name (optional)" />
                                         </Form.Item>
                                     </Col>
+
+                                    <Col xs={24} md={12}>
+                                        <Form.Item label="Middle Name" name="middleName">
+                                            <Input placeholder="Middle name (optional)" />
+                                        </Form.Item>
+                                    </Col>
+
+                                    <Col xs={24} md={12}>
+                                        <Form.Item label="Job Title" name="position">
+                                            <Input placeholder="Job title" />
+                                        </Form.Item>
+                                    </Col>
                                 </Row>
                             </Form>
                         )}
@@ -223,6 +257,13 @@ export default function Profile() {
                                             label="Phone"
                                             name="phone">
                                             <Input placeholder="Phone number" />
+                                        </Form.Item>
+                                    </Col>
+                                    <Col xs={24} md={12}>
+                                        <Form.Item
+                                            label="Work Phone"
+                                            name="workPhone">
+                                            <Input placeholder="Work phone number" />
                                         </Form.Item>
                                     </Col>
 

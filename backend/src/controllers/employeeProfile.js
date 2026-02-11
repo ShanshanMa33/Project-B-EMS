@@ -3,9 +3,17 @@ const employeeProfile = require('../models/employeeProfile');
 // Get employee profile
 exports.getEmployeeProfile = async (req, res, next) => {
     try {
-        const profile = await employeeProfile.findOne({ user: req.user._id });
+        let profile = await employeeProfile.findOne({ user: req.user._id });
         if (!profile) {
-            return res.status(404).json({ message: 'Employee profile not found' });
+            const username = String(req.user?.username || '').trim();
+            const [firstNameFromUsername, ...rest] = username.split(/[._\s-]+/).filter(Boolean);
+            profile = await employeeProfile.create({
+                user: req.user._id,
+                firstName: firstNameFromUsername || 'User',
+                lastName: rest.join(' ') || 'Profile',
+                preferredName: firstNameFromUsername || 'User',
+                email: req.user?.email || '',
+            });
         }
         res.json(profile);
     } catch (error) {
@@ -17,14 +25,28 @@ exports.getEmployeeProfile = async (req, res, next) => {
 exports.updateEmployeeProfile = async (req, res, next) => {
     try {
         const updates = req.body;
-        const profile = await employeeProfile.findOneAndUpdate(
-            { user: req.user._id },
-            { $set: updates },
-            { new: true, runValidators: true, upsert: true, setDefaultsOnInsert: true }
-        );
+        const username = String(req.user?.username || '').trim();
+        const [firstNameFromUsername, ...rest] = username.split(/[._\s-]+/).filter(Boolean);
+        let profile = await employeeProfile.findOne({ user: req.user._id });
+
+        if (!profile) {
+            profile = new employeeProfile({
+                user: req.user._id,
+                firstName: firstNameFromUsername || 'User',
+                lastName: rest.join(' ') || 'Profile',
+                preferredName: firstNameFromUsername || 'User',
+                email: req.user?.email || '',
+            });
+        }
+
+        profile.set(updates);
+        await profile.save();
 
         res.json(profile);
     } catch (error) {
-        next(error);
+        if (error?.name === 'ValidationError') {
+            return res.status(400).json({ message: error.message });
+        }
+        return next(error);
     }
 };

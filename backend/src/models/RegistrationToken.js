@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const registrationTokenSchema = new mongoose.Schema({
   token: { type: String, required: true, unique: true },
+  name: { type: String, trim: true, default: '' },
   email: { type: String, required: true },
   status: { type: String, enum: ['unused', 'used'], default: 'unused' },
   createdAt: { 

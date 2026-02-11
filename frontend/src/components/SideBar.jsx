@@ -36,6 +36,7 @@ const Sidebar = ({ activePage }) => {
         if (role === 'hr') {
             return [
                 { text: 'Dashboard', path: '/hr/dashboard', icon: <DashboardIcon /> },
+                { text: 'My Profile', path: '/hr/profile', icon: <BadgeIcon /> },
                 { text: 'Employee Profiles', path: '/hr/profiles', icon: <PeopleIcon /> },
                 { text: 'Visa Status', path: '/hr/visa', icon: <AssignmentIndIcon /> },
                 { text: 'Hiring Management', path: '/hr/hiring', icon: <PersonAddIcon /> },
@@ -70,16 +71,19 @@ const Sidebar = ({ activePage }) => {
             elevation={0}
             sx={{
                 width: drawerWidth,
-                height: '100vh',
+                flexShrink: 0,
+                height: '100dvh',
+                minHeight: '100vh',
                 borderRadius: 0,
                 display: 'flex',
                 flexDirection: 'column',
                 p: 3,
                 bgcolor: 'white',
                 borderRight: '1px solid #f1f5f9',
+                overflowY: 'auto',
             }}
         >
-            {/* Branding */}
+
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 4, px: 1 }}>
                 <Box sx={{
                     width: 40, height: 40,
@@ -94,7 +98,7 @@ const Sidebar = ({ activePage }) => {
                     <Typography variant="h6" sx={{ fontWeight: 800, color: '#1e293b', letterSpacing: '-0.5px' }}>
                         HR PORTER
                     </Typography>
-                    <Typography variant="caption" xs={{ color: "#94a3b8", fontWeight: 600 }}>
+                    <Typography variant="caption" sx={{ color: "#94a3b8", fontWeight: 600 }}>
                         {role === 'hr' ? "HR" : "Employee"} Portal
                     </Typography>
                 </Box>
@@ -132,8 +136,10 @@ const Sidebar = ({ activePage }) => {
                                     primary={item.text}
                                     primaryTypographyProps={{
                                         fontWeight: isActive ? 700 : 500,
-                                        fontSize: '0.95rem'
+                                        fontSize: '0.95rem',
+                                        noWrap: true,
                                     }}
+                                    sx={{ minWidth: 0 }}
                                 />
                                 {isActive && (
                                     <Box sx={{
@@ -152,7 +158,7 @@ const Sidebar = ({ activePage }) => {
             <Divider sx={{ my: 2 }} />
 
             {/* User Info */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2, px: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb:2, px: 1 }}>
                 <Avatar sx={{ bgcolor: '#e0e7ff', color: '#4338ca', fontWeight: 800 }}>
                     {(user?.username || "U").slice(0, 2).toUpperCase()}
                 </Avatar>
@@ -167,25 +173,30 @@ const Sidebar = ({ activePage }) => {
             </Box>
 
             {/* Logout */}
-            <ListItemButton
-                onClick={() => { dispatch(logout()); navigate('/signin'); }}
-                sx={{
-                    borderRadius: '16px',
-                    py: 1.3, px: 2.2,
-                    color: '#94a3b8',
-                    '&:hover': { bgcolor: '#fee2e2', color: '#ef4444' }
-                }}
-            >
-                <ListItemIcon sx={{ minWidth: 40, color: 'inherit' }}>
-                    <LogoutIcon />
-                </ListItemIcon>
-                <ListItemText
-                    primary="Logout"
-                    primaryTypographyProps={{
-                        fontWeight: 600,
-                        fontSize: '0.95rem'
-                    }} />
-            </ListItemButton>
+            <ListItem disablePadding>
+                <ListItemButton
+                    onClick={() => { dispatch(logout()); navigate('/signin'); }}
+                    sx={{
+                        borderRadius: '16px',
+                        py: 1.3,
+                        px: 2.2,
+                        mb: 6,
+                        color: '#94a3b8',
+                        '&:hover': { bgcolor: '#fee2e2', color: '#ef4444' }
+                    }}
+                >
+                    <ListItemIcon sx={{ minWidth: 40, color: 'inherit' }}>
+                        <LogoutIcon />
+                    </ListItemIcon>
+                    <ListItemText
+                        primary="Logout"
+                        primaryTypographyProps={{
+                            fontWeight: 600,
+                            fontSize: '0.95rem'
+                        }}
+                    />
+                </ListItemButton>
+            </ListItem>
         </Paper>
     );
 
@@ -214,7 +225,7 @@ const Sidebar = ({ activePage }) => {
                     open={mobileOpen}
                     onClose={() => setMobileOpen(false)}
                     ModalProps={{ keepMounted: true }}
-                    sx={{ "& .MuiDrawer-paper": { width: drawerWidth } }}
+                    sx={{ "& .MuiDrawer-paper": { width: { xs: '85vw', sm: drawerWidth }, maxWidth: drawerWidth } }}
                 >
                     {content}
                 </Drawer>
