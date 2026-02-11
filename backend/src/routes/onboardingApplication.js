@@ -1,10 +1,25 @@
 const router = require('express').Router();
 const { authenticateToken, authorizeRoles } = require('../middleware/auth');
-const { getOnboardingApplication, createOnboardingApplication, updateOnboardingApplication
+const ctrl = require('../controllers/onboardingApplication');
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage() }); // Use memory storage for processing in controller
+const { uploadOnboarding } = require('../middleware/uploadOnboarding');
+const { getMyApplication, createOrUpdateMyApplication, updateMyOnboardingApplication,
+    uploadOnboardingDoc, downloadOnboardingDoc, previewOnboardingDoc, deleteOnboardingDoc
 } = require('../controllers/onboardingApplication');
 
-router.get('/onboarding', authenticateToken, authorizeRoles('employee', 'hr'), getOnboardingApplication);
-router.post('/onboarding', authenticateToken, authorizeRoles('employee'), createOnboardingApplication);
-router.put('/onboarding/:id', authenticateToken, authorizeRoles('employee', 'hr'), updateOnboardingApplication);
+// Employee routes for onboarding application
+router.get('/', authenticateToken, authorizeRoles('employee'), ctrl.getMyApplication);
+router.post('/', authenticateToken, authorizeRoles('employee'), ctrl.createOrUpdateMyApplication);
+// Allow PUT for updates as well
+router.put('/', authenticateToken, authorizeRoles('employee'), ctrl.updateMyOnboardingApplication);
+
+// Document upload/download routes
+router.post('/documents', authenticateToken, authorizeRoles('employee'), uploadOnboarding.single('file'), ctrl.uploadOnboardingDoc);
+router.put('/documents', authenticateToken, authorizeRoles('employee'), uploadOnboarding.single('file'), ctrl.uploadOnboardingDoc);
+// Document download/preview routes
+router.get('/documents/:docId', authenticateToken, authorizeRoles('employee'), ctrl.downloadOnboardingDoc);
+router.get('/documents/:docId/preview', authenticateToken, authorizeRoles('employee'), ctrl.previewOnboardingDoc);
+router.delete('/documents/:docId', authenticateToken, authorizeRoles('employee'), ctrl.deleteOnboardingDoc);
 
 module.exports = router;

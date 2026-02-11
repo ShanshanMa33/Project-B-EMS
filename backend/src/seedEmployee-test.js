@@ -40,8 +40,8 @@ async function seedEmployee() {
         department: 'Engineering',
         startDate: new Date(),
         notes: 'Welcome to join the team!',
-        status: 'not_started',
-        statusHistory: [{ status: 'not_started', changedAt: new Date() }],
+        status: 'in_progress',
+        statusHistory: [{ status: 'in_progress', changedAt: new Date() }],
     });
 
     console.log('Employee profile and onboarding application seeded successfully!');

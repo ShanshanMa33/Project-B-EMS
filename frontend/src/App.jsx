@@ -8,11 +8,13 @@ import VisaStatus from "./pages/employee/visaStatus";
 import Onboarding from "./pages/employee/onboarding";
 import EmployeeHome from "./pages/employee/home";
 import SignIn from "./pages/auth/signin";
+import Register from "./pages/auth/register";
 
 export default function App() {
     return (
         <Routes>
             <Route path="/signin" element={<SignIn />} />
+            <Route path="/register" element={<Register />} />
             {/* Default route redirects to sign-in page */}
             <Route path="/" element={<Navigate to="/signin" replace />} />
             {/* Employee routes */}

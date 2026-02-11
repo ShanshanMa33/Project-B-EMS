@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Alert, Col, Form, Input, Row, message } from "antd";
-import { Box, Card, CardContent } from "@mui/material";
+import { Box, Card, CardContent, Typography } from "@mui/material";
 
 import PageHeader from "../../components/PageHeader";
 import EditableSection from "../../components/editableSection";
@@ -73,10 +73,28 @@ export default function Profile() {
     ]);
 
     const cardSx = useMemo(() => ({
-        boarderRadius: "16px",
+        borderRadius: "16px",
         bgcolor: "white",
+        border: "1px solid #eef2f7",
         boxShadow: "0px 2px 10px rgba(0, 0, 0, 0.02)",
     }), []);
+
+    const renderValue = (value) => (value ? String(value) : "—");
+
+    const InfoItem = ({ label, value }) => (
+        <Box sx={{ mb: 1.5 }}>
+            <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em" }}
+            >
+                {label}
+            </Typography>
+            <Typography variant="body1" sx={{ color: "text.primary", fontWeight: 600 }}>
+                {renderValue(value)}
+            </Typography>
+        </Box>
+    );
 
     const saveBasic = async () => {
         const values = await basicForm.validateFields();
@@ -118,7 +136,7 @@ export default function Profile() {
 
         await dispatch(updateProfile(payload)).unwrap();
         message.success("Emergency contact saved");
-        setEditEmergency(false);
+        return true;
     };
 
     return (
@@ -149,39 +167,52 @@ export default function Profile() {
                         saving={loading}
                     >
                         {({ isEditing }) => (
-                            <Form
-                                form={basicForm}
-                                layout="vertical"
-                                disabled={!isEditing}
-                            >
+                            isEditing ? (
+                                <Form
+                                    form={basicForm}
+                                    layout="vertical"
+                                >
+                                    <Row gutter={16}>
+                                        <Col xs={24} md={12}>
+                                            <Form.Item
+                                                label="First Name"
+                                                name="firstName"
+                                                rules={[{ required: true, message: "First name is required" }]}
+                                            >
+                                                <Input placeholder="First name" />
+                                            </Form.Item>
+                                        </Col>
+
+                                        <Col xs={24} md={12}>
+                                            <Form.Item
+                                                label="Last Name"
+                                                name="lastName"
+                                                rules={[{ required: true, message: "Last name is required" }]}
+                                            >
+                                                <Input placeholder="Last name" />
+                                            </Form.Item>
+                                        </Col>
+
+                                        <Col xs={24} md={12}>
+                                            <Form.Item label="Preferred Name" name="preferredName">
+                                                <Input placeholder="Preferred name (optional)" />
+                                            </Form.Item>
+                                        </Col>
+                                    </Row>
+                                </Form>
+                            ) : (
                                 <Row gutter={16}>
-                                    <Col xs={24} md={12}>
-                                        <Form.Item
-                                            label="First Name"
-                                            name="firstName"
-                                            rules={[{ required: true, message: "First name is required" }]}
-                                        >
-                                            <Input placeholder="First name" />
-                                        </Form.Item>
+                                    <Col xs={24} md={8}>
+                                        <InfoItem label="First name" value={basicInitialValues.firstName} />
                                     </Col>
-
-                                    <Col xs={24} md={12}>
-                                        <Form.Item
-                                            label="Last Name"
-                                            name="lastName"
-                                            rules={[{ required: true, message: "Last name is required" }]}
-                                        >
-                                            <Input placeholder="Last name" />
-                                        </Form.Item>
+                                    <Col xs={24} md={8}>
+                                        <InfoItem label="Last name" value={basicInitialValues.lastName} />
                                     </Col>
-
-                                    <Col xs={24} md={12}>
-                                        <Form.Item label="Preferred Name" name="preferredName">
-                                            <Input placeholder="Preferred name (optional)" />
-                                        </Form.Item>
+                                    <Col xs={24} md={8}>
+                                        <InfoItem label="Preferred name" value={basicInitialValues.preferredName} />
                                     </Col>
                                 </Row>
-                            </Form>
+                            )
                         )}
                     </EditableSection>
                 </CardContent>
@@ -201,72 +232,100 @@ export default function Profile() {
                         saving={loading}
                     >
                         {({ isEditing }) => (
-                            <Form
-                                form={contactForm}
-                                layout="vertical"
-                                disabled={!isEditing}>
+                            isEditing ? (
+                                <Form
+                                    form={contactForm}
+                                    layout="vertical"
+                                >
+                                    <Row gutter={16}>
+                                        <Col xs={24} md={12}>
+                                            <Form.Item
+                                                label="Email"
+                                                name="email"
+                                                rules={[{
+                                                    type: "email",
+                                                    message: "Please enter a valid email",
+                                                }]}
+                                            >
+                                                <Input placeholder="Email address" />
+                                            </Form.Item>
+                                        </Col>
+
+                                        <Col xs={24} md={12}>
+                                            <Form.Item
+                                                label="Phone"
+                                                name="phone">
+                                                <Input placeholder="Phone number" />
+                                            </Form.Item>
+                                        </Col>
+
+                                        <Col xs={24} md={12}>
+                                            <Form.Item
+                                                label="Address Line 1"
+                                                name="addressLine1">
+                                                <Input placeholder="Address Line 1" />
+                                            </Form.Item>
+                                        </Col>
+
+                                        <Col xs={24} md={12}>
+                                            <Form.Item
+                                                label="Address Line 2"
+                                                name="addressLine2">
+                                                <Input placeholder="Address Line 2 (optional)" />
+                                            </Form.Item>
+                                        </Col>
+
+                                        <Col xs={24} md={8}>
+                                            <Form.Item
+                                                label="City"
+                                                name="city">
+                                                <Input placeholder="City" />
+                                            </Form.Item>
+                                        </Col>
+
+                                        <Col xs={24} md={8}>
+                                            <Form.Item
+                                                label="State"
+                                                name="state">
+                                                <Input placeholder="State" />
+                                            </Form.Item>
+                                        </Col>
+
+
+                                        <Col xs={24} md={8}>
+                                            <Form.Item
+                                                label="ZIP Code"
+                                                name="zip">
+                                                <Input placeholder="ZIP Code" />
+                                            </Form.Item>
+                                        </Col>
+                                    </Row>
+                                </Form>
+                            ) : (
                                 <Row gutter={16}>
-                                    <Col xs={24} md={12}>
-                                        <Form.Item
-                                            label="Email"
-                                            name="email"
-                                            rules={[{
-                                                type: "email",
-                                                message: "Please enter a valid email",
-                                            }]}>
-                                            <Input placeholder="Email address" />
-                                        </Form.Item>
-                                    </Col>
-
-                                    <Col xs={24} md={12}>
-                                        <Form.Item
-                                            label="Phone"
-                                            name="phone">
-                                            <Input placeholder="Phone number" />
-                                        </Form.Item>
-                                    </Col>
-
-                                    <Col xs={24} md={12}>
-                                        <Form.Item
-                                            label="Address Line 1"
-                                            name="addressLine1">
-                                            <Input placeholder="Address Line 1" />
-                                        </Form.Item>
-                                    </Col>
-
-                                    <Col xs={24} md={12}>
-                                        <Form.Item
-                                            label="Address Line 2"
-                                            name="addressLine2">
-                                            <Input placeholder="Address Line 2 (optional)" />
-                                        </Form.Item>
-                                    </Col>
-
                                     <Col xs={24} md={8}>
-                                        <Form.Item
-                                            label="City"
-                                            name="city">
-                                            <Input placeholder="City" />
-                                        </Form.Item>
+                                        <InfoItem label="Email" value={contactInitialValues.email} />
                                     </Col>
-
                                     <Col xs={24} md={8}>
-                                        <Form.Item
-                                            label="State"
-                                            name="state">
-                                            <Input placeholder="State" />
-                                        </Form.Item>
+                                        <InfoItem label="Phone" value={contactInitialValues.phone} />
                                     </Col>
-
                                     <Col xs={24} md={8}>
-                                        <Form.Item
-                                            label="ZIP Code"
-                                            name="zip">
-                                            <Input placeholder="ZIP Code" />
-                                        </Form.Item>
+                                        <InfoItem label="Address line 1" value={contactInitialValues.addressLine1} />
+                                    </Col>
+                                    <Col xs={24} md={8}>
+                                        <InfoItem label="Address line 2" value={contactInitialValues.addressLine2} />
+                                    </Col>
+                                    <Col xs={24} md={8}>
+                                        <InfoItem label="City" value={contactInitialValues.city} />
+                                    </Col>
+                                    <Col xs={24} md={8}>
+                                        <InfoItem label="State" value={contactInitialValues.state} />
+                                    </Col>
+                                    <Col xs={24} md={8}>
+                                        <InfoItem label="ZIP code" value={contactInitialValues.zip} />
                                     </Col>
                                 </Row>
-                            </Form>
+                            )
                         )}
                     </EditableSection>
                 </CardContent>
@@ -285,39 +344,55 @@ export default function Profile() {
                         onSave={saveEmergency}
                         saving={loading}>
                         {({ isEditing }) => (
-                            <Form
-                                form={emergencyForm}
-                                layout="vertical"
-                                disabled={!isEditing}>
+                            isEditing ? (
+                                <Form
+                                    form={emergencyForm}
+                                    layout="vertical"
+                                >
+                                    <Row gutter={16}>
+                                        <Col xs={24} md={12}>
+                                            <Form.Item
+                                                label="Emergency Contact Name"
+                                                name="contactName"
+                                                rules={[{ required: true, message: "Name is required" }]}
+                                            >
+                                                <Input placeholder="Full name of emergency contact" />
+                                            </Form.Item>
+                                        </Col>
+
+                                        <Col xs={24} md={12}>
+                                            <Form.Item
+                                                label="Relationship"
+                                                name="relationship">
+                                                <Input placeholder="Relationship to you (e.g. spouse, parent, friend)" />
+                                            </Form.Item>
+                                        </Col>
+
+                                        <Col xs={24} md={12}>
+                                            <Form.Item
+                                                label="Phone"
+                                                name="contactPhone"
+                                                rules={[{ required: true, message: "Phone number is required" }]}
+                                            >
+                                                <Input placeholder="Phone number of emergency contact" />
+                                            </Form.Item>
+                                        </Col>
+                                    </Row>
+                                </Form>
+
+                            ) : (
                                 <Row gutter={16}>
-                                    <Col xs={24} md={12}>
-                                        <Form.Item
-                                            label="Emergency Contact Name"
-                                            name="contactName"
-                                            rules={[{ required: true, message: "Name is required" }]}>
-                                            <Input placeholder="Full name of emergency contact" />
-                                        </Form.Item>
+                                    <Col xs={24} md={8}>
+                                        <InfoItem label="Contact name" value={emergencyInitialValues.contactName} />
                                     </Col>
-
-                                    <Col xs={24} md={12}>
-                                        <Form.Item
-                                            label="Relationship"
-                                            name="relationship">
-                                            <Input placeholder="Relationship to you (e.g. spouse, parent, friend)" />
-                                        </Form.Item>
+                                    <Col xs={24} md={8}>
+                                        <InfoItem label="Relationship" value={emergencyInitialValues.relationship} />
                                     </Col>
-
-                                    <Col xs={24} md={12}>
-                                        <Form.Item
-                                            label="Phone"
-                                            name="contactPhone"
-                                            rules={[{ required: true, message: "Phone number is required" }]}>
-                                            <Input placeholder="Phone number of emergency contact" />
-                                        </Form.Item>
+                                    <Col xs={24} md={8}>
+                                        <InfoItem label="Phone" value={emergencyInitialValues.contactPhone} />
                                     </Col>
                                 </Row>
-                            </Form>
-
+                            )
                         )}
                     </EditableSection>
                 </CardContent>

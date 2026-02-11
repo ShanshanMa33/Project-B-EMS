@@ -1,181 +1,257 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { Alert, Box, Card, CardContent, Divider, Grid, Typography } from "@mui/material";
+import { Alert, Box, Card, CardContent, Typography, Button, Stack } from "@mui/material";
+import { fetchOnboarding } from "../../store/onboardingSlice";
 
 import VisaDocUploader from "../../components/Employee/VisaDocUploader";
-import { fetchVisaCases, uploadVisaDocument, clearVisaState } from "../../store/visaSlice";
+import { fetchVisaCases } from "../../store/visaSlice";
 
-import VisaCurrentStatusCard from "../../components/Employee/VisaCurrentStatusCard";
-import VisaApplicationTrack from "../../components/Employee/VisaApplicationTrack";
-
-// What docs you want to show (UI order)
-const STAGES = [
-    { docType: "OPT_RECEIPT", label: "OPT Receipt", trackTitle: "OPT Receipt Uploaded" },
-    { docType: "OPT_EAD", label: "OPT EAD", trackTitle: "OPT EAD Uploaded" },
-    { docType: "I-983", label: "I-983", trackTitle: "I-983 Uploaded" },
-    { docType: "I-20", label: "I-20", trackTitle: "I-20 Uploaded" },
+const DOCS = [
+    { key: "OPT_RECEIPT", label: "OPT Receipt" },
+    { key: "OPT_EAD", label: "OPT EAD" },
+    { key: "I-983", label: "I-983 Form" },
+    { key: "I-20", label: "I-20 Form" },
 ];
+
+const STATUS_MESSAGES = {
+    OPT_RECEIPT: {
+        pending: "Waiting for HR to approve your OPT Receipt.",
+        approved: "Please upload a copy of your OPT EAD.",
+        rejected: "Your OPT Receipt was rejected.",
+    },
+    OPT_EAD: {
+        pending: "Waiting for HR to approve your OPT EAD.",
+        approved: "Please download and fill out the I-983 form.",
+        rejected: "Your OPT EAD was rejected.",
+    },
+    "I-983": {
+        pending: "Waiting for HR to approve and sign your I-983.",
+        approved: "Please send the I-983 along with all necessary documents to your school and upload the new I-20.",
+        rejected: "Your I-983 was rejected.",
+    },
+    "I-20": {
+        pending: "Waiting for HR to approve your I-20.",
+        approved: "All documents have been approved.",
+        rejected: "Your I-20 was rejected.",
+    },
+};
+
+function getNextDocKey(documents = []) {
+    for (const d of DOCS) {
+        const found = documents.find((x) => x.docType === d.key);
+        if (!found) return d.key;
+        if (found.status !== "approved") return d.key; // pending or rejected
+    }
+    return null;
+}
 
 export default function VisaStatus() {
     const dispatch = useDispatch();
 
-    // ✅ matches your visaSlice initialState
-    const { visaCase, loading, error, message } = useSelector((state) => state.visa);
+    const { application, loading: onboardingLoading, error: onboardingError } =
+        useSelector((s) => s.onboarding);
 
-    // track which doc is uploading (so we can disable only that button)
-    const [uploadingDocType, setUploadingDocType] = useState(null);
+    //be defensive: some slices use visaCases (array), some use visaCase (object)
+    const {
+        visaCase,
+        visaCases,
+        loading: visaLoading,
+        error: visaError,
+    } = useSelector((s) => s.visa);
+
+
+    useEffect(() => {
+        if (!application && !onboardingLoading) {
+            dispatch(fetchOnboarding());
+        }
+    }, [dispatch, application, onboardingLoading]);
 
     useEffect(() => {
         dispatch(fetchVisaCases());
-
-        return () => {
-            dispatch(clearVisaState());
-        };
     }, [dispatch]);
 
-    const docsMap = useMemo(() => {
-        const arr = visaCase?.documents || [];
-        const map = {};
-        for (const doc of arr) map[doc.docType] = doc;
-        return map;
-    }, [visaCase]);
+    //unify visa data safely
+    const visaCas = useMemo(() => {
+        const data = visaCase ?? visaCases ?? null;
+        if (!data) return null;
+        return Array.isArray(data) ? data[0] ?? null : data;
+    }, [visaCase, visaCases]);
 
-    const handleFileUpload = async (docType, file) => {
-        if (!visaCase) return; // no case yet
-        if (!file) return;
+    const visaType = application?.workAuth?.visaType || "";
+    const isF1 = visaType === "F1(CPT/OPT)";
 
-        try {
-            setUploadingDocType(docType);
+    const documents = visaCas?.documents || [];
 
-            // ✅ matches your thunk signature: ({ docType, fileName })
-            // (fileName is actually a File object in your code)
-            await dispatch(uploadVisaDocument({ docType, file })).unwrap();
+    const docsByType = useMemo(() => {
+        return documents.reduce((acc, doc) => {
+            acc[doc.docType] = doc;
+            return acc;
+        }, {});
+    }, [documents]);
 
-            // refresh the newest case/doc list
-            dispatch(fetchVisaCases());
-        } finally {
-            setUploadingDocType(null);
-        }
+    const getDocStatus = (docType) => docsByType[docType]?.status || "missing";
+    const getDocName = (docType) => docsByType[docType]?.originalName || docsByType[docType]?.storedName || "";
+
+    const canUploadDoc = (docKey) => {
+        const index = DOCS.findIndex((d) => d.key === docKey);
+        if (index === -1) return false;
+
+        const currentStatus = getDocStatus(docKey);
+        if (currentStatus === "pending") return false;
+        if (currentStatus === "approved") return false;
+
+        if (index === 0) return true; // OPT Receipt
+        const prevKey = DOCS[index - 1].key;
+        return getDocStatus(prevKey) === "approved";
     };
 
-    return (
-        <Box sx={{ p: { xs: 1, md: 2 } }}>
-            <Box sx={{ mb: 2 }}>
-                <Typography variant="h5" sx={{ fontWeight: 900, color: "#0f172a" }}>
-                    Visa Status
-                </Typography>
-                <Typography variant="body2" sx={{ color: "#64748b" }}>
-                    Upload required documents and track your case steps.
-                </Typography>
+    const renderStatusAlert = (docKey) => {
+        const status = getDocStatus(docKey);
+        if (status === "missing") return null;
+
+        const feedback = docsByType[docKey]?.feedback;
+        const msg = STATUS_MESSAGES[docKey]?.[status];
+        if (!msg) return null;
+
+        if (status === "rejected") {
+            return (
+                <Alert severity="error" sx={{ mb: 1 }}>
+                    {msg} Please check below HR's feedback and reload your file. {feedback ? `HR feedback: ${feedback}` : null}
+                </Alert>
+            );
+        }
+
+        return (
+            <Alert severity={status === "approved" ? "success" : "info"} sx={{ mb: 1 }}>
+                {msg}
+            </Alert>
+        );
+    };
+
+    const renderStatusButton = (docKey) => {
+        const status = getDocStatus(docKey);
+        if (status === "missing") return null;
+
+        const label = status.charAt(0).toUpperCase() + status.slice(1);
+        const color = status === "approved" ? "success" : status === "rejected" ? "error" : "info";
+
+        return (
+            <Button variant="outlined" color={color} size="small">
+                {label}
+            </Button>
+        );
+    };
+
+    const nextDocKey = getNextDocKey(documents);
+    const nextLabel = DOCS.find((d) => d.key === nextDocKey)?.label;
+
+    // ✅ render loading UI instead of returning before hooks
+    if (onboardingLoading && !application) {
+        return (
+            <Box>
+                <Alert severity="info">Loading your onboarding info...</Alert>
             </Box>
+        );
+    }
 
-            {!!error && (
+    return (
+        <Box>
+            {onboardingError && (
                 <Alert severity="error" sx={{ mb: 2 }}>
-                    {error}
+                    {String(onboardingError)}
                 </Alert>
             )}
 
-            {!!message && !error && (
-                <Alert severity="success" sx={{ mb: 2 }}>
-                    {message}
+            {/* If you want to hide upload UI for non-F1, turn this back on */}
+            {!isF1 && (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                    Your visa type is <strong>{visaType || "Unknown"}</strong>. OPT upload
+                    is only required for F1(CPT/OPT).
                 </Alert>
             )}
 
-            <Grid container spacing={2}>
-                {/* LEFT: Case Steps */}
-                <Grid item xs={12} lg={7}>
-                    <Box sx={{ display: "grid", gap: 2 }}>
-                        <VisaCurrentStatusCard stages={STAGES} docsMap={docsMap} />
+            {isF1 && (
+                <Alert severity="success" variant="outlined" sx={{ mb: 2, bgcolor: "#f0fdf4", borderColor: "success.light" }}>
+                    Your work authorization is F1 (CPT/OPT). Please upload your OPT documents below so HR can review your case.
+                </Alert>
+            )}
 
-                        <VisaApplicationTrack
-                            stages={STAGES}
-                            docsMap={docsMap}
-                            onView={(doc) => {
-                                // Phase 1: just open file in a new tab once you have preview endpoint wired
-                                // later we can call /api/visa/me/documents/:docId/preview
-                                console.log("view doc", doc);
-                            }}
-                        />
-                    </Box>
-                </Grid>
+            {visaError && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                    {String(visaError)}
+                </Alert>
+            )}
 
-                {/* RIGHT: Document Uploads */}
-                <Grid item xs={12} lg={5}>
-                    <Card
-                        elevation={0}
-                        sx={{
-                            borderRadius: 3,
-                            border: "1px solid #e2e8f0",
-                        }}
-                    >
-                        <CardContent>
-                            <Typography variant="h6" sx={{ fontWeight: 900, color: "#0f172a", mb: 1 }}>
-                                Document Uploads
-                            </Typography>
-                            <Typography variant="body2" sx={{ color: "#64748b", mb: 2 }}>
-                                Upload PDFs or images. Each doc type is tracked separately.
-                            </Typography>
+            {visaLoading && !visaCas ? (
+                <Alert severity="info">Loading your visa case...</Alert>
+            ) : (
+                isF1 && (
+                    <>
+                        {nextDocKey ? (
+                            <Alert severity="info" sx={{ mb: 2 }}>
+                                Next document to upload: <strong>{nextLabel}</strong>
+                            </Alert>
+                        ) : (
+                            <Alert severity="success" sx={{ mb: 2 }}>
+                                All documents uploaded! Please wait for HR review.
+                            </Alert>
+                        )}
 
-                            <Box sx={{ display: "grid", gap: 1.2 }}>
-                                {STAGES.map((d) => {
-                                    const existing = docsMap[d.docType];
-                                    const isUploadingThis = uploadingDocType === d.docType;
+                        <Card>
+                            <CardContent>
+                                <Typography variant="h6" sx={{ mb: 2, fontWeight: 800 }}>
+                                    OPT Document Status & Uploads
+                                </Typography>
 
-                                    return (
-                                        <Box
-                                            key={d.docType}
-                                            sx={{
-                                                p: 1.25,
-                                                borderRadius: 2,
-                                                bgcolor: "#f8fafc",
-                                            }}
-                                        >
-                                            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1 }}>
-                                                <Box sx={{ minWidth: 0 }}>
-                                                    <Typography sx={{ fontWeight: 900, color: "#0f172a" }}>
-                                                        {d.label}
-                                                    </Typography>
-                                                    <Typography variant="caption" sx={{ color: "#64748b" }}>
-                                                        {existing?.filename || existing?.originalName || "No file uploaded"}
-                                                    </Typography>
-                                                </Box>
+                                {DOCS.map((doc) => (
+                                    <Box key={doc.key} sx={{ mb: 2 }}>
+                                        <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 700 }}>
+                                            {doc.label}
+                                        </Typography>
 
-                                                <VisaDocUploader
-                                                    label={isUploadingThis ? "Uploading..." : "Upload"}
-                                                    disabled={!visaCase || loading || isUploadingThis}
-                                                    onFileUpload={(file) => handleFileUpload(d.docType, file)}
-                                                />
-                                            </Box>
+                                        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1, flexWrap: "wrap" }}>
+                                            <Typography variant="body2" color="text.secondary">
+                                                {getDocName(doc.key) || "No file uploaded"}
+                                            </Typography>
+                                            {renderStatusButton(doc.key)}
+                                        </Stack>
 
-                                            <Divider sx={{ my: 1 }} />
+                                        {doc.key === "I-983" && (
+                                            <Stack direction="row" spacing={2} sx={{ mb: 1, flexWrap: "wrap" }}>
+                                                <Button
+                                                    variant="outlined"
+                                                    component="a"
+                                                    href="/templates/i983-empty.pdf"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                >
+                                                    Empty Template
+                                                </Button>
+                                                <Button
+                                                    variant="outlined"
+                                                    component="a"
+                                                    href="/templates/i983-sample.pdf"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                >
+                                                    Sample Template
+                                                </Button>
+                                            </Stack>
+                                        )}
 
-                                            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                                <Typography variant="caption" sx={{ color: "#64748b" }}>
-                                                    Status:{" "}
-                                                    <span style={{ fontWeight: 800, color: "#0f172a" }}>
-                                                        {(existing?.status || "not_uploaded").toString().replaceAll("_", " ")}
-                                                    </span>
-                                                </Typography>
+                                        <VisaDocUploader
+                                            docType={doc.key}
+                                            disabled={!canUploadDoc(doc.key)}
+                                        />
 
-                                                <Typography variant="caption" sx={{ color: "#94a3b8" }}>
-                                                    {d.docType}
-                                                </Typography>
-                                            </Box>
-                                        </Box>
-                                    );
-                                })}
-                            </Box>
-
-
-                            {!visaCase && (
-                                <Alert severity="info" sx={{ mt: 2 }}>
-                                    Upload is disabled because your visa case hasn’t been created yet.
-                                </Alert>
-                            )}
-                        </CardContent>
-                    </Card>
-                </Grid>
-            </Grid>
+                                        {renderStatusAlert(doc.key)}
+                                    </Box>
+                                ))}
+                            </CardContent>
+                        </Card>
+                    </>
+                )
+            )}
         </Box>
     );
 }

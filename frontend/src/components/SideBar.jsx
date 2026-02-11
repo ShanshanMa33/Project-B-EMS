@@ -94,7 +94,7 @@ const Sidebar = ({ activePage }) => {
                     <Typography variant="h6" sx={{ fontWeight: 800, color: '#1e293b', letterSpacing: '-0.5px' }}>
                         HR PORTER
                     </Typography>
-                    <Typography variant="caption" xs={{ color: "#94a3b8", fontWeight: 600 }}>
+                    <Typography variant="caption" sx={{ color: "#94a3b8", fontWeight: 600 }}>
                         {role === 'hr' ? "HR" : "Employee"} Portal
                     </Typography>
                 </Box>
