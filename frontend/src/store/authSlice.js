@@ -4,7 +4,7 @@ import { api } from '../api/client';
 // Async thunk for user sign-in
 export const signIn = createAsyncThunk("auth/signin", async (payload, thunkAPI) => {
     try {
-        const response = await api.post("/api/auth/login", {
+        const response = await api.post("/api/auth/signin", {
             username: payload.username,
             password: payload.password,
         });
