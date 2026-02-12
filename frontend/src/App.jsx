@@ -8,6 +8,7 @@ import EmployeeVisaStatus from "./pages/employee/visaStatus";
 import Onboarding from "./pages/employee/onboarding";
 import EmployeeHome from "./pages/employee/home";
 import SignIn from "./pages/auth/signin";
+import Register from "./pages/auth/register";
 import Unauthorized from "./pages/unauthorized";
 import Layout from "./components/Layout";
 
@@ -21,6 +22,7 @@ export default function App() {
     return (
         <Routes>
             <Route path="/signin" element={<SignIn />} />
+            <Route path="/register" element={<Register />} />
             <Route path="/" element={<Navigate to="/signin" replace />} />
 
             <Route element={<ProtectedRoute allowRoles={["employee"]} />}>

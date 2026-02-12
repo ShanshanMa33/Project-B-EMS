@@ -60,7 +60,16 @@ const authSlice = createSlice({
             })
             // Handle fetching current user info
             .addCase(fetchCurrentUser.fulfilled, (state, action) => {
+                state.loading = false;
                 state.user = action.payload.user;
+            })
+            .addCase(fetchCurrentUser.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+            })
+            .addCase(fetchCurrentUser.rejected, (state, action) => {
+                state.loading = false;
+                state.error = action.payload?.message || "Failed to fetch user";
             })
     }
 });

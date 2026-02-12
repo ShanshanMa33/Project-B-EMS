@@ -1,52 +1,60 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { api } from '../api/client';
+import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
+import { api } from "../api/client";
 
-// Async thunk to fetch onboarding application
 export const fetchOnboarding = createAsyncThunk("onboarding/fetch", async (_, thunkAPI) => {
     try {
-        const response = await api.get("/api/onboarding");
-        return response.data;
-    } catch (error) {
-        return thunkAPI.rejectWithValue(error.response.data.message || { message: "Failed to load onboarding" });
+        const res = await api.get("/api/onboarding");
+        return res.data;
+    } catch (e) {
+        return thunkAPI.rejectWithValue(e.response?.data?.message || "Failed to load onboarding");
     }
 });
 
-// Async thunk to create onboarding application
-export const createOnboarding = createAsyncThunk("onboarding/create", async (payload, thunkAPI) => {
+export const createOnboarding = createAsyncThunk("onboarding/create", async (_, thunkAPI) => {
     try {
-        const response = await api.post("/api/onboarding", {});
-        return response.data;
-    } catch (error) {
-        return thunkAPI.rejectWithValue(error.response.data.message || { message: "Failed to create onboarding" });
+        const res = await api.post("/api/onboarding", {});
+        return res.data;
+    } catch (e) {
+        return thunkAPI.rejectWithValue(e.response?.data?.message || "Failed to create onboarding");
     }
 });
 
-// Async thunk to update onboarding application status
-export const updateOnboarding = createAsyncThunk("onboarding/update", async ({ id, status }, thunkAPI) => {
+export const saveOnboarding = createAsyncThunk("onboarding/save", async (payload, thunkAPI) => {
     try {
-        const response = await api.put(`/api/onboarding/${id}`, { status });
-        return response.data;
-    } catch (error) {
-        return thunkAPI.rejectWithValue(error.response.data.message || { message: "Failed to update onboarding" });
+        const res = await api.put("/api/onboarding", payload);
+        return res.data;
+    } catch (e) {
+        return thunkAPI.rejectWithValue(e.response?.data?.message || "Failed to save onboarding");
     }
 });
 
-const onboardingSlice = createSlice({
+export const submitOnboarding = createAsyncThunk("onboarding/submit", async (_, thunkAPI) => {
+    try {
+        const res = await api.put("/api/onboarding", { action: "submit" });
+        return res.data;
+    } catch (e) {
+        return thunkAPI.rejectWithValue(e.response?.data?.message || "Failed to submit onboarding");
+    }
+});
+
+const slice = createSlice({
     name: "onboarding",
-    initialState: {
-        application: null,
-        loading: false,
-        error: null
-    },
+    initialState: { application: null, loading: false, error: null },
     reducers: {},
-    extraReducers: (builder) => {
-        // Handle fetching onboarding application
-        builder.addCase(fetchOnboarding.fulfilled, (state, action) => { state.application = action.payload; })
-            // Handle creating and updating onboarding application
-            .addCase(createOnboarding.fulfilled, (state, action) => { state.application = action.payload; })
-            // Handle updating onboarding application status
-            .addCase(updateOnboarding.fulfilled, (state, action) => { state.application = action.payload; })
-    }
+    extraReducers: (b) => {
+        b.addMatcher((a) => a.type.startsWith("onboarding/") && a.type.endsWith("/pending"), (s) => {
+            s.loading = true;
+            s.error = null;
+        });
+        b.addMatcher((a) => a.type.startsWith("onboarding/") && a.type.endsWith("/fulfilled"), (s, a) => {
+            s.loading = false;
+            s.application = a.payload;
+        });
+        b.addMatcher((a) => a.type.startsWith("onboarding/") && a.type.endsWith("/rejected"), (s, a) => {
+            s.loading = false;
+            s.error = a.payload || "Error";
+        });
+    },
 });
 
-export default onboardingSlice.reducer;
+export default slice.reducer;

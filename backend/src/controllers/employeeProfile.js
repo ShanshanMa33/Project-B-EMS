@@ -15,7 +15,13 @@ exports.getEmployeeProfile = async (req, res, next) => {
                 email: req.user?.email || '',
             });
         }
-        res.json(profile);
+
+        const result = profile.toObject();
+        if (!result.email && req.user?.email) {
+            result.email = req.user.email;
+        }
+
+        res.json(result);
     } catch (error) {
         next(error);
     }
@@ -24,11 +30,13 @@ exports.getEmployeeProfile = async (req, res, next) => {
 // Update employee profile
 exports.updateEmployeeProfile = async (req, res, next) => {
     try {
-        const updates = req.body;
+        const updates = { ...req.body };
+        delete updates.email;
+
         const username = String(req.user?.username || '').trim();
         const [firstNameFromUsername, ...rest] = username.split(/[._\s-]+/).filter(Boolean);
-        let profile = await employeeProfile.findOne({ user: req.user._id });
 
+        let profile = await employeeProfile.findOne({ user: req.user._id });
         if (!profile) {
             profile = new employeeProfile({
                 user: req.user._id,

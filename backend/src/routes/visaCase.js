@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { authenticateToken, authorizeRoles } = require('../middleware/auth');
-const { upload } = require('../middleware/upload');
+const { upload } = require('../middleware/uploadVisa');
 const visaCaseController = require('../controllers/visaCase');
 
 router.get('/me', authenticateToken, authorizeRoles('employee'), visaCaseController.getMyVisaCases);
