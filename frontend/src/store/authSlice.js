@@ -24,6 +24,20 @@ export const fetchCurrentUser = createAsyncThunk("auth/me", async (_, thunkAPI) 
     }
 });
 
+// Async thunk for registration with invitation token
+export const registerWithToken = createAsyncThunk("auth/registerWithToken", async (payload, thunkAPI) => {
+    try {
+        const response = await api.post("/api/auth/register-with-token", {
+            token: payload.token,
+            username: payload.username,
+            password: payload.password,
+        });
+        return response.data;
+    } catch (error) {
+        return thunkAPI.rejectWithValue(error.response?.data || { message: "Registration failed" });
+    }
+});
+
 const authSlice = createSlice({
     name: "auth",
     initialState: {
@@ -62,6 +76,7 @@ const authSlice = createSlice({
             .addCase(fetchCurrentUser.fulfilled, (state, action) => {
                 state.loading = false;
                 state.user = action.payload.user;
+                localStorage.setItem("user", JSON.stringify(action.payload.user));
             })
             .addCase(fetchCurrentUser.pending, (state) => {
                 state.loading = true;
@@ -71,6 +86,17 @@ const authSlice = createSlice({
                 state.loading = false;
                 state.error = action.payload?.message || "Failed to fetch user";
             })
+            .addCase(registerWithToken.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+            })
+            .addCase(registerWithToken.fulfilled, (state) => {
+                state.loading = false;
+            })
+            .addCase(registerWithToken.rejected, (state, action) => {
+                state.loading = false;
+                state.error = action.payload?.message || "Registration failed";
+            });
     }
 });
 

@@ -1,44 +1,80 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo } from "react";
+import { useDispatch, useSelector } from "react-redux";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Alert, Button, Card, Form, Input, message } from "antd";
+import { registerWithToken } from "../../store/authSlice";
 import { api } from "../../api/client";
 
 export default function Register() {
+    const dispatch = useDispatch();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
+    const { loading, error } = useSelector((state) => state.auth);
     const [form] = Form.useForm();
 
     const tokenFromQuery = searchParams.get("token") || "";
-    const emailFromQuery = searchParams.get("email") || "";
 
     const initialValues = useMemo(() => ({
         token: tokenFromQuery,
-        email: emailFromQuery,
         username: "",
         password: "",
         confirmPassword: "",
-    }), [tokenFromQuery, emailFromQuery]);
+    }), [tokenFromQuery]);
+
+    useEffect(() => {
+        if (!tokenFromQuery) return;
+
+        let alive = true;
+        (async () => {
+            try {
+                const res = await api.get("/api/auth/registration-token-status", {
+                    params: { token: tokenFromQuery },
+                });
+                if (!alive) return;
+
+                const status = String(res.data?.status || "").toLowerCase();
+                if (status === "used") {
+                    message.info("This invitation link has already been used. Please sign in.");
+                    navigate("/signin", { replace: true });
+                }
+            } catch {
+                // If status check fails, keep page usable; submit endpoint will still validate.
+            }
+        })();
+
+        return () => {
+            alive = false;
+        };
+    }, [tokenFromQuery, navigate]);
 
     const onSubmit = async () => {
         const values = await form.validateFields();
-        await api.post("/api/auth/register", {
+        const result = await dispatch(registerWithToken({
             token: values.token,
             username: values.username,
-            email: values.email,
             password: values.password,
-        });
+        }));
+        if (!registerWithToken.fulfilled.match(result)) return;
         message.success("Registration successful. Please sign in.");
         navigate("/signin");
     };
 
     return (
-        <div style={{ maxWidth: 460, margin: "80px auto" }}>
+        <div style={{ maxWidth: 560, width: "92%", margin: "56px auto" }}>
             <Card title="Employee Registration">
                 {!tokenFromQuery && (
                     <Alert
                         type="warning"
                         showIcon
                         message="Registration token is missing. Please use the link provided by HR."
+                        style={{ marginBottom: 16 }}
+                    />
+                )}
+                {error && (
+                    <Alert
+                        type="error"
+                        showIcon
+                        message={typeof error === "string" ? error : error?.message || "Registration failed"}
                         style={{ marginBottom: 16 }}
                     />
                 )}
@@ -50,17 +86,6 @@ export default function Register() {
                         rules={[{ required: true, message: "Token is required" }]}
                     >
                         <Input placeholder="Paste your token" />
-                    </Form.Item>
-
-                    <Form.Item
-                        label="Email"
-                        name="email"
-                        rules={[
-                            { required: true, message: "Email is required" },
-                            { type: "email", message: "Enter a valid email" },
-                        ]}
-                    >
-                        <Input placeholder="you@example.com" />
                     </Form.Item>
 
                     <Form.Item
@@ -100,8 +125,11 @@ export default function Register() {
                         <Input.Password placeholder="Re-enter password" />
                     </Form.Item>
 
-                    <Button type="primary" block onClick={onSubmit}>
+                    <Button type="primary" size="large" block onClick={onSubmit} loading={loading}>
                         Create Account
+                    </Button>
+                    <Button type="link" block onClick={() => navigate("/signin")}>
+                        Already have an account? Sign in
                     </Button>
                 </Form>
             </Card>

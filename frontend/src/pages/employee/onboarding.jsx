@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Alert, Box, Card, CardContent, Typography, Divider, Grid, Stack } from "@mui/material";
-import { Button, Form, Input, DatePicker, Select, Upload, Space } from "antd";
+import { Button, Form, Input, DatePicker, Select, Upload, Space, message } from "antd";
 import { UploadOutlined, DownloadOutlined, EyeOutlined, PlusOutlined, MinusCircleOutlined, DeleteOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import PageHeader from "../../components/PageHeader";
@@ -247,10 +247,10 @@ function UploadedDocsList({ docs = [], readonly, onDelete }) {
     );
 }
 
-function UploadDocsSection({ disabled, onUploaded }) {
+function UploadDocsSection({ disabled, onUploaded, ensureCreated }) {
     const [docType, setDocType] = useState("DRIVER_LICENSE");
     const [fileList, setFileList] = useState([]);
-    const dispatch = useDispatch();
+    const [uploading, setUploading] = useState(false);
 
     const uploadProps = {
         fileList,
@@ -260,19 +260,28 @@ function UploadDocsSection({ disabled, onUploaded }) {
     };
 
     const doUpload = async () => {
-        const fileObj = fileList[0]?.originFileObj;
+        const fileObj = fileList[0]?.originFileObj || fileList[0];
         if (!fileObj || !docType) return;
 
-        const formData = new FormData();
-        formData.append("docType", docType);
-        formData.append("file", fileObj);
+        try {
+            setUploading(true);
+            await ensureCreated?.();
 
-        await api.post(`${API_BASE}/documents`, formData, {
-            headers: { "Content-Type": "multipart/form-data" },
-        });
-        dispatch(fetchOnboarding());
-        // Clear selected file after upload
-        setFileList([]);
+            const formData = new FormData();
+            formData.append("docType", docType);
+            formData.append("file", fileObj);
+
+            await api.post(`${API_BASE}/documents`, formData, {
+                headers: { "Content-Type": "multipart/form-data" },
+            });
+            message.success("Document uploaded");
+            setFileList([]);
+            await onUploaded?.();
+        } catch (e) {
+            message.error(e?.response?.data?.message || "Upload failed");
+        } finally {
+            setUploading(false);
+        }
     };
 
     return (
@@ -305,7 +314,8 @@ function UploadDocsSection({ disabled, onUploaded }) {
                         <Button
                             type="primary"
                             onClick={doUpload}
-                            disabled={disabled || !fileList?.length}
+                            disabled={disabled || !fileList?.length || uploading}
+                            loading={uploading}
                         >
                             Upload
                         </Button>
@@ -325,6 +335,7 @@ export default function EmployeeOnboarding() {
     const dispatch = useDispatch();
     const { application, loading, error } = useSelector((s) => s.onboarding);
     const [form] = Form.useForm();
+    const hydratedRef = useRef(false);
 
     // Load onboarding
     useEffect(() => {
@@ -355,7 +366,11 @@ export default function EmployeeOnboarding() {
 
     // Initialize form values
     useEffect(() => {
+        if (!application) return;
+        // Avoid overwriting unsaved local edits after upload/fetch refresh.
+        if (hydratedRef.current && form.isFieldsTouched(true)) return;
         form.setFieldsValue(toFormValues(application));
+        hydratedRef.current = true;
     }, [application, form]);
 
     // Ensure onboarding exists when user first visits (Mode A with null app)
@@ -414,7 +429,7 @@ export default function EmployeeOnboarding() {
 
                 <OnboardingStatusBanner
                     status={status}
-                    rejectionFeedback={application?.rejectionFeedback}
+                    feedback={application?.rejectionFeedback}
                 />
 
                 <Grid container spacing={2}>
@@ -430,7 +445,7 @@ export default function EmployeeOnboarding() {
                                     form={form}
                                     layout="vertical"
                                     disabled={readOnly}
-                                    initialValues={{ emergencyContacts: [{ firstName: "", lastName: "", phone: "", relationship: "" }] }}
+                                    initialValues={{ emergencyContact: [{ firstName: "", lastName: "", phone: "", relationship: "" }] }}
                                 >
                                     <Divider sx={{ my: 2 }} />
                                     <Typography fontWeight={800} sx={{ mb: 1 }}>
@@ -679,7 +694,7 @@ export default function EmployeeOnboarding() {
                                         Emergency contact(s)
                                     </Typography>
 
-                                    <Form.List name="emergencyContacts">
+                                    <Form.List name="emergencyContact">
                                         {(fields, { add, remove }) => (
                                             <Stack spacing={2}>
                                                 {fields.map(({ key, name, ...restField }) => (
@@ -756,6 +771,7 @@ export default function EmployeeOnboarding() {
 
                                         <UploadDocsSection
                                             disabled={readOnly}
+                                            ensureCreated={ensureCreated}
                                             onUploaded={() => dispatch(fetchOnboarding())}
                                         />
                                     </Stack>

@@ -1,10 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const hrController = require('../controllers/hrController');
-const { authenticateToken, authorizeRoles } = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/auth');
+const { requireHr } = require('../middleware/workflowGuards');
 
 
-router.use(authenticateToken, authorizeRoles('hr'));
+router.use(authenticateToken, requireHr);
 
 // 1. Hiring
 router.post('/invitation', hrController.sendInvitation);
@@ -20,6 +21,8 @@ router.put('/onboarding/review', hrController.reviewApplication);
 router.get('/profiles', hrController.getAllEmployees);
 router.get('/documents/:userId/:docKey/preview', hrController.previewEmployeeDocument);
 router.get('/documents/:userId/:docKey/download', hrController.downloadEmployeeDocument);
+router.get('/onboarding-documents/:userId/:docId/preview', hrController.previewOnboardingApplicationDocument);
+router.get('/onboarding-documents/:userId/:docId/download', hrController.downloadOnboardingApplicationDocument);
 router.get('/visa-documents/:userId/:docId/preview', hrController.previewVisaCaseDocument);
 router.get('/visa-documents/:userId/:docId/download', hrController.downloadVisaCaseDocument);
 

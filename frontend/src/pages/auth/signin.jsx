@@ -3,6 +3,7 @@ import { signIn } from "../../store/authSlice";
 import { fetchOnboarding } from "../../store/onboardingSlice";
 import { useNavigate } from "react-router-dom";
 import { Alert, Button, Card, Form, Input } from "antd";
+import { getRedirectRoute, normalizeOnboardingStatus } from "../../utils/authWorkflow";
 
 export default function SignIn() {
     const dispatch = useDispatch();
@@ -17,22 +18,26 @@ export default function SignIn() {
 
         if (!signIn.fulfilled.match(res)) return;
 
-        const role = String(res.payload.user?.role || "").toLowerCase();
-        if (role === "hr") {
-            navigate("/hr/dashboard");
+        const signedInUser = res.payload?.user || {};
+        const role = String(signedInUser.role || "").toLowerCase();
+        if (role !== "employee") {
+            navigate(getRedirectRoute(signedInUser), { replace: true });
             return;
         }
 
-        const onboardingRes = await dispatch(fetchOnboarding());
-        if (fetchOnboarding.fulfilled.match(onboardingRes)) {
-            const status = onboardingRes.payload?.status;
-            if (status !== "approved") {
-                navigate("/dashboard/employee/onboarding");
-                return;
+        // Prefer backend-provided onboardingStatus; refresh from onboarding API if missing.
+        let onboardingStatus = signedInUser.onboardingStatus;
+        if (!onboardingStatus) {
+            const onboardingRes = await dispatch(fetchOnboarding());
+            if (fetchOnboarding.fulfilled.match(onboardingRes)) {
+                onboardingStatus = normalizeOnboardingStatus(onboardingRes.payload?.status);
             }
         }
 
-        navigate("/dashboard/employee");
+        navigate(
+            getRedirectRoute({ ...signedInUser, onboardingStatus }),
+            { replace: true }
+        );
     };
 
     return (

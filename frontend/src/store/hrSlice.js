@@ -113,8 +113,13 @@ export const fetchHRApplicationDetail = createAsyncThunk('hr/fetchApplicationDet
 export const reviewHRApplicationThunk = createAsyncThunk(
   'hr/reviewApplication',
   async ({ userId, status, feedback = '' }) => {
-    await reviewHRApplication({ userId, status, feedback });
-    return { userId, status, feedback };
+    const normalizedStatus = String(status || '').toLowerCase();
+    await reviewHRApplication({ userId, status: normalizedStatus, feedback });
+    return {
+      userId,
+      status: normalizedStatus === 'approved' ? 'Approved' : 'Rejected',
+      feedback,
+    };
   }
 );
 

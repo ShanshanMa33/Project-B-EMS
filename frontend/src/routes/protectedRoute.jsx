@@ -3,13 +3,18 @@ import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { fetchOnboarding } from "../store/onboardingSlice";
 import { fetchCurrentUser } from "../store/authSlice";
+import {
+    getRedirectRoute,
+    isEmployeeOnboardingRoute,
+    normalizeOnboardingStatus,
+} from "../utils/authWorkflow";
 
 export default function ProtectedRoute({ allowRoles }) {
     const location = useLocation();
     const dispatch = useDispatch();
 
     const { token, user, loading: authLoading } = useSelector((state) => state.auth);
-    const { application, loading, error } = useSelector((state) => state.onboarding);
+    const { loading, initialized, application } = useSelector((state) => state.onboarding);
 
     const role = typeof user?.role === "string" ? user.role.toLowerCase() : null;
     const normalizedAllowRoles = Array.isArray(allowRoles)
@@ -25,10 +30,10 @@ export default function ProtectedRoute({ allowRoles }) {
 
     useEffect(() => {
         if (!token || !user || !isEmployee) return;
-        if (!application && !loading && !error) {
+        if (!initialized && !loading) {
             dispatch(fetchOnboarding());
         }
-    }, [dispatch, token, user, isEmployee, application, loading, error]);
+    }, [dispatch, token, user, isEmployee, initialized, loading]);
 
     if (!token) {
         return <Navigate to="/signin" replace state={{ from: location }} />;
@@ -42,8 +47,24 @@ export default function ProtectedRoute({ allowRoles }) {
         return <Navigate to="/unauthorized" replace />;
     }
 
-    if (isEmployee && loading && !application) {
+    if (isEmployee && !initialized) {
         return <div>Loading...</div>;
+    }
+
+    if (isEmployee) {
+        const onboardingStatus = initialized
+            ? normalizeOnboardingStatus(application?.status)
+            : normalizeOnboardingStatus(user?.onboardingStatus);
+        const redirectTo = getRedirectRoute({ ...user, onboardingStatus });
+        const onOnboardingPage = isEmployeeOnboardingRoute(location.pathname);
+
+        if (redirectTo === "/dashboard/employee/onboarding" && !onOnboardingPage) {
+            return <Navigate to={redirectTo} replace />;
+        }
+
+        if (redirectTo === "/dashboard/employee" && onOnboardingPage) {
+            return <Navigate to={redirectTo} replace />;
+        }
     }
 
     return <Outlet />;

@@ -8,10 +8,17 @@ const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const fs = require('fs');
 const path = require('path');
+const { uploadDir: onboardingUploadDir } = require('../middleware/uploadOnboarding');
+const { buildUserVisaStatusFromDocuments, getNextStep } = require('../utils/visaNextStep');
+const {
+    canHrReviewOnboarding,
+    normalizeOnboardingStatus,
+} = require('../utils/onboardingStatusTransitions');
 
 const statusLabelMap = {
     not_started: 'Pending',
     in_progress: 'Pending',
+    pending: 'Pending',
     submitted: 'Pending',
     in_review: 'Pending',
     approved: 'Approved',
@@ -46,6 +53,16 @@ function isVisaStatusEmployee(profile) {
     if (profile?.residentStatus === 'citizen') return false;
     if (profile?.residentStatus === 'green_card') return false;
     return profile?.isPermanentResidentOrCitizen === false;
+}
+
+function resolveDisplayName({ app, profile, user }) {
+    const firstName = app?.firstName || profile?.firstName || app?.preferredName || profile?.preferredName || '';
+    const lastName = app?.lastName || profile?.lastName || '';
+    const fullName = `${firstName} ${lastName}`.trim();
+    if (fullName) return fullName;
+    if (user?.username) return user.username;
+    if (user?.email) return String(user.email).split('@')[0];
+    return 'N/A';
 }
 
 // --- HIRING / INVITATIONS ---
@@ -94,11 +111,13 @@ async function getInvitationHistory(req, res) {
             .lean();
         const profileByUserId = new Map(profiles.map((p) => [String(p.user), p]));
 
-        const onboardingApps = await OnboardingApplication.find({ User: { $in: userIds } })
-            .select('User status')
+        const onboardingApps = await OnboardingApplication.find({
+            $or: [{ employee: { $in: userIds } }, { User: { $in: userIds } }],
+        })
+            .select('employee User status')
             .lean();
-        const appByUserId = new Map(onboardingApps.map((a) => [String(a.User), a]));
-        const submittedStatuses = new Set(['submitted', 'in_review', 'approved', 'rejected']);
+        const appByUserId = new Map(onboardingApps.map((a) => [String(a.employee || a.User), a]));
+        const submittedStatuses = new Set(['pending', 'submitted', 'in_review', 'approved', 'rejected']);
 
         const history = tokens.map((item) => {
             const emailLower = String(item.email || '').toLowerCase();
@@ -138,28 +157,27 @@ async function getInvitationHistory(req, res) {
 async function getPendingApplication(req, res) {
     try {
         const apps = await OnboardingApplication.find({
-            status: { $in: ['submitted', 'in_review', 'not_started', 'in_progress'] },
+            status: { $in: ['pending', 'submitted', 'in_review'] },
         })
-            .populate('User', 'email')
+            .populate('employee User', 'email')
             .sort({ updatedAt: -1 });
 
-        const userIds = apps.map((a) => a.User?._id).filter(Boolean);
+        const userIds = apps.map((a) => a.employee?._id || a.User?._id).filter(Boolean);
         const profiles = await EmployeeProfile.find({ user: { $in: userIds } });
         const profileByUserId = new Map(profiles.map((p) => [String(p.user), p]));
 
         const pendingUsers = apps.map((app) => {
-            const profile = profileByUserId.get(String(app.User?._id));
-            const firstName = profile?.preferredName || profile?.firstName || 'N/A';
-            const lastName = profile?.lastName || '';
+            const linkedUser = app.employee || app.User;
+            const profile = profileByUserId.get(String(linkedUser?._id));
             return {
                 _id: String(app._id),
-                userId: String(app.User?._id || ''),
-                name: `${firstName} ${lastName}`.trim(),
-                email: app.User?.email || profile?.email || '',
+                userId: String(linkedUser?._id || ''),
+                name: resolveDisplayName({ app, profile, user: linkedUser }),
+                email: linkedUser?.email || profile?.email || '',
                 position: app.positionTitle || profile?.position || '',
                 status: statusLabelMap[app.status] || 'Pending',
                 rawStatus: app.status,
-                feedback: app.notes || '',
+                feedback: app.rejectionFeedback || '',
                 date: app.updatedAt,
             };
         });
@@ -173,22 +191,21 @@ async function getPendingApplication(req, res) {
 async function getAllApplications(req, res) {
     try {
         const apps = await OnboardingApplication.find({})
-            .populate('User', 'email')
+            .populate('employee User', 'email')
             .sort({ updatedAt: -1 });
 
-        const userIds = apps.map((a) => a.User?._id).filter(Boolean);
+        const userIds = apps.map((a) => a.employee?._id || a.User?._id).filter(Boolean);
         const profiles = await EmployeeProfile.find({ user: { $in: userIds } });
         const profileByUserId = new Map(profiles.map((p) => [String(p.user), p]));
 
         const results = apps.map((app) => {
-            const profile = profileByUserId.get(String(app.User?._id));
-            const firstName = profile?.preferredName || profile?.firstName || 'N/A';
-            const lastName = profile?.lastName || '';
+            const linkedUser = app.employee || app.User;
+            const profile = profileByUserId.get(String(linkedUser?._id));
             return {
                 _id: String(app._id),
-                userId: String(app.User?._id || ''),
-                name: `${firstName} ${lastName}`.trim(),
-                email: app.User?.email || profile?.email || '',
+                userId: String(linkedUser?._id || ''),
+                name: resolveDisplayName({ app, profile, user: linkedUser }),
+                email: linkedUser?.email || profile?.email || '',
                 position: app.positionTitle || profile?.position || '',
                 status: statusLabelMap[app.status] || 'Pending',
                 rawStatus: app.status,
@@ -208,29 +225,31 @@ async function getAllApplications(req, res) {
 async function reviewApplication(req, res) {
   try {
     const { userId, status, feedback } = req.body;
-    const statusMap = {
-        Pending: 'in_review',
-        Approved: 'approved',
-        Rejected: 'rejected',
-        in_review: 'in_review',
-        approved: 'approved',
-        rejected: 'rejected',
-    };
-    const targetStatus = statusMap[status];
+    const statusMap = { approved: 'approved', rejected: 'rejected' };
+    const targetStatus = statusMap[String(status || '').toLowerCase()];
     if (!userId || !targetStatus) {
-        return res.status(400).json({ message: 'userId and valid status are required' });
+        return res.status(400).json({ message: 'userId and status (approved|rejected) are required' });
     }
 
-    const app = await OnboardingApplication.findOne({ User: userId });
+    const app = await OnboardingApplication.findOne({
+        $or: [{ employee: userId }, { User: userId }],
+    });
     if (!app) {
         return res.status(404).json({ message: 'Onboarding application not found' });
     }
 
+    if (!canHrReviewOnboarding(app.status, targetStatus)) {
+        return res.status(409).json({
+            message: `Invalid onboarding transition: ${normalizeOnboardingStatus(app.status)} -> ${targetStatus}`,
+        });
+    }
+
     app.status = targetStatus;
     if (targetStatus === 'rejected') {
-        app.notes = (feedback || '').trim();
+        app.rejectionFeedback = (feedback || '').trim();
+    } else {
+        app.rejectionFeedback = '';
     }
-    app.statusHistory.push({ status: targetStatus, changedAt: new Date() });
     await app.save();
 
     res.status(200).json({ message: `Application ${targetStatus}`, app });
@@ -246,8 +265,9 @@ async function getApplicationDetail(req, res) {
             return res.status(400).json({ message: 'userId is required' });
         }
 
-        const app = await OnboardingApplication.findOne({ User: userId })
-            .populate('User', 'email username');
+        const app = await OnboardingApplication.findOne({
+            $or: [{ employee: userId }, { User: userId }],
+        }).populate('employee User', 'email username');
         const profile = await EmployeeProfile.findOne({ user: userId });
 
         if (!app && !profile) {
@@ -272,11 +292,21 @@ async function getApplicationDetail(req, res) {
             return [];
         })();
 
-        const documents = [
-            { key: 'driverLicense', label: 'Driver License', fileName: profile?.documents?.driverLicense || '' },
-            { key: 'workAuthorization', label: 'Work Authorization', fileName: profile?.documents?.workAuthorization || '' },
-            { key: 'optReceipt', label: 'OPT Receipt', fileName: profile?.workAuthorization?.optReceiptFileName || '' },
-        ];
+        const onboardingDocuments = (app?.uploadedDocs || []).map((d) => ({
+            source: 'onboarding',
+            key: String(d.docType || 'ONBOARDING_DOC'),
+            label: String(d.docType || 'Onboarding Document').replaceAll('_', ' '),
+            fileName: d.originalName || d.fileName || '',
+            docId: String(d._id),
+        }));
+
+        const profileDocuments = [
+            { source: 'profile', key: 'driverLicense', label: 'Driver License', fileName: profile?.documents?.driverLicense || '' },
+            { source: 'profile', key: 'workAuthorization', label: 'Work Authorization', fileName: profile?.documents?.workAuthorization || '' },
+            { source: 'profile', key: 'optReceipt', label: 'OPT Receipt', fileName: profile?.workAuthorization?.optReceiptFileName || '' },
+        ].filter((d) => String(d.fileName || '').trim());
+
+        const documents = [...onboardingDocuments, ...profileDocuments];
 
         return res.status(200).json({ app, profile, emergencyContacts, documents });
     } catch (error) {
@@ -302,15 +332,19 @@ async function getAllEmployees(req, res) {
         const userIds = users.map((u) => u._id);
         const profiles = await EmployeeProfile.find({ user: { $in: userIds } });
         const profileByUserId = new Map(profiles.map((p) => [String(p.user), p]));
-        const onboardingApps = await OnboardingApplication.find({ User: { $in: userIds } }).select('User positionTitle status');
-        const appByUserId = new Map(onboardingApps.map((a) => [String(a.User), a]));
+        const onboardingApps = await OnboardingApplication.find({
+            $or: [{ employee: { $in: userIds } }, { User: { $in: userIds } }],
+        }).select('employee User positionTitle status');
+        const appByUserId = new Map(onboardingApps.map((a) => [String(a.employee || a.User), a]));
 
         const employees = users
             .map((user) => {
                 const profile = profileByUserId.get(String(user._id));
                 const app = appByUserId.get(String(user._id));
+                const visibleInVisaStatus = isVisaStatusEmployee(profile);
 
-                if (user.role !== 'hr' && app?.status !== 'approved') {
+                // Keep approved employees visible, and also include employees who are in visa-status scope.
+                if (user.role !== 'hr' && app?.status !== 'approved' && !visibleInVisaStatus) {
                     return null;
                 }
 
@@ -432,29 +466,20 @@ async function getAllVisaStatus(req, res) {
             } else if (app?.status === 'submitted' || app?.status === 'in_review') {
                 nextStep = 'Wait for HR approval';
             } else if (isOptEmployee) {
+                const userVisaStatus = buildUserVisaStatusFromDocuments(visaCase?.documents || []);
+                nextStep = getNextStep(userVisaStatus);
+
                 const pendingDoc = REQUIRED_OPT_DOCS.map((d) => docsByType.get(d.type)).find((d) => d && d.status === 'pending');
                 if (pendingDoc) {
-                    const label = docLabelByType.get(pendingDoc.docType) || pendingDoc.docType;
-                    nextStep = `Wait for HR approval (${label})`;
                     actionType = 'review';
                     pendingReviewDoc = {
                         docId: String(pendingDoc._id),
                         docType: pendingDoc.docType,
-                        label,
+                        label: docLabelByType.get(pendingDoc.docType) || pendingDoc.docType,
                         originalName: pendingDoc.originalName,
                     };
                 } else {
-                    const nextRequired = REQUIRED_OPT_DOCS.find((d) => {
-                        const doc = docsByType.get(d.type);
-                        return !doc || doc.status === 'rejected';
-                    });
-                    if (nextRequired) {
-                        nextStep = `Upload ${nextRequired.label}`;
-                        actionType = 'notify';
-                    } else {
-                        nextStep = 'All required OPT documents approved';
-                        actionType = 'none';
-                    }
+                    actionType = nextStep === 'All documents have been approved' ? 'none' : 'notify';
                 }
             }
 
@@ -576,6 +601,7 @@ function resolveLocalDocumentPath(fileName) {
 
     const candidates = [
         path.join(__dirname, '..', '..', 'uploads', safeName),
+        path.join(__dirname, '..', '..', 'uploads', 'onboardingDocs', safeName),
         path.join(__dirname, '..', '..', 'uploads', 'visaDocs', safeName),
     ];
 
@@ -635,6 +661,50 @@ async function downloadEmployeeDocument(req, res) {
     return streamEmployeeDocument(req, res, 'attachment');
 }
 
+async function streamOnboardingApplicationDocument(req, res, disposition) {
+    try {
+        const { userId, docId } = req.params;
+        if (!userId || !docId) {
+            return res.status(400).json({ message: 'Invalid userId or docId' });
+        }
+
+        const app = await OnboardingApplication.findOne({
+            $or: [{ employee: userId }, { User: userId }],
+        });
+        if (!app) {
+            return res.status(404).json({ message: 'Onboarding application not found' });
+        }
+
+        const document = (app.uploadedDocs || []).find((d) => String(d._id) === String(docId));
+        if (!document) {
+            return res.status(404).json({ message: 'Onboarding document not found' });
+        }
+
+        const localPath = path.join(onboardingUploadDir, document.fileName);
+        if (!fs.existsSync(localPath)) {
+            return res.status(404).json({ message: 'Onboarding document file not found on server' });
+        }
+
+        if (disposition === 'attachment') {
+            return res.download(localPath, document.originalName || path.basename(localPath));
+        }
+
+        res.setHeader('Content-Type', document.mimeType || 'application/octet-stream');
+        res.setHeader('Content-Disposition', `inline; filename="${document.originalName || path.basename(localPath)}"`);
+        return res.sendFile(localPath);
+    } catch (error) {
+        return res.status(500).json({ message: 'Failed to read onboarding document', error: error.message });
+    }
+}
+
+async function previewOnboardingApplicationDocument(req, res) {
+    return streamOnboardingApplicationDocument(req, res, 'inline');
+}
+
+async function downloadOnboardingApplicationDocument(req, res) {
+    return streamOnboardingApplicationDocument(req, res, 'attachment');
+}
+
 async function streamVisaCaseDocument(req, res, disposition) {
     try {
         const { userId, docId } = req.params;
@@ -690,6 +760,8 @@ module.exports = {
     sendVisaNotification,
     previewEmployeeDocument,
     downloadEmployeeDocument,
+    previewOnboardingApplicationDocument,
+    downloadOnboardingApplicationDocument,
     previewVisaCaseDocument,
     downloadVisaCaseDocument,
 };

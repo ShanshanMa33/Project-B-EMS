@@ -20,7 +20,7 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/employee', employeeProfileRoutes);
-app.use('/api/', onboardingApplicationRoutes);
+app.use('/api/onboarding', onboardingApplicationRoutes);
 app.use('/api/hr', hrRoutes);
 app.use('/api/visa', visaCaseRoutes);
 // Health check endpoint

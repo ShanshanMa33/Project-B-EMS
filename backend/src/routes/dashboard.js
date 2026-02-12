@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const { authenticateToken, authorizeRoles } = require('../middleware/auth');
+const { requireApprovedOnboarding } = require('../middleware/workflowGuards');
 
 router.get('/', authenticateToken, (req, res) => {
     res.json({
@@ -17,7 +18,7 @@ router.get('/hr', authenticateToken, authorizeRoles('hr'), (req, res) => {
 });
 
 // Employee-only dashboard
-router.get('/employee', authenticateToken, authorizeRoles('employee'), (req, res) => {
+router.get('/employee', authenticateToken, authorizeRoles('employee'), requireApprovedOnboarding, (req, res) => {
     res.json({
         dashboard: 'employee',
         message: 'Welcome Employee!'

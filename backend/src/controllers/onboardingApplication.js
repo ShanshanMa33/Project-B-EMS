@@ -2,12 +2,41 @@ const path = require('path');
 const fs = require('fs');
 const OnboardingApplication = require('../models/onboardingApplication');
 const { uploadOnboarding, uploadDir } = require('../middleware/uploadOnboarding');
+const {
+    canEmployeeEditOnboarding,
+    canEmployeeSubmitOnboarding,
+} = require('../utils/onboardingStatusTransitions');
+
+async function findMyApplication(userId) {
+    return OnboardingApplication.findOne({
+        $or: [{ employee: userId }, { User: userId }],
+    });
+}
+
+async function normalizeApplicationOwner(app, user) {
+    if (!app) return null;
+    let changed = false;
+    if (!app.employee) {
+        app.employee = user.id || user._id;
+        changed = true;
+    }
+    if (!app.User) {
+        app.User = user.id || user._id;
+        changed = true;
+    }
+    if (!app.email && user.email) {
+        app.email = user.email;
+        changed = true;
+    }
+    if (changed) await app.save();
+    return app;
+}
 
 
 // Get the current user's onboarding application
 exports.getMyApplication = async (req, res, next) => {
     try {
-        const application = await OnboardingApplication.findOne({ employee: req.user.id });
+        const application = await normalizeApplicationOwner(await findMyApplication(req.user.id), req.user);
         res.json(application || null);
     } catch (err) {
         next(err);
@@ -17,11 +46,12 @@ exports.getMyApplication = async (req, res, next) => {
 // Create or update the current user's onboarding application
 exports.createOrUpdateMyApplication = async (req, res, next) => {
     try {
-        const existing = await OnboardingApplication.findOne({ employee: req.user.id });
+        const existing = await normalizeApplicationOwner(await findMyApplication(req.user.id), req.user);
         if (existing) return res.status(200).json(existing); // Return existing application if found
 
         const app = await OnboardingApplication.create({
             employee: req.user.id,
+            User: req.user.id,
             email: req.user.email,
             status: "in_progress",
             emergencyContact: { firstName: '', lastName: '', relationship: '', phone: '' },
@@ -35,37 +65,32 @@ exports.createOrUpdateMyApplication = async (req, res, next) => {
 // Update the current user's onboarding application
 exports.updateMyOnboardingApplication = async (req, res, next) => {
     try {
-        let app = await OnboardingApplication.findOne({ employee: req.user.id });
+        let app = await normalizeApplicationOwner(await findMyApplication(req.user.id), req.user);
         if (!app) {
             app = await OnboardingApplication.create({
                 employee: req.user.id,
+                User: req.user.id,
                 email: req.user.email,
                 status: "in_progress",
                 emergencyContact: { firstName: '', lastName: '', relationship: '', phone: '' },
             });
         }
 
-        if (app.status === 'pending') {
-            return res.status(400).json({ message: 'Application is pending HR review and not editable' });
-        }
-        const allowedWhenEditable = ['in_progress', 'rejected'];
-        if (!allowedWhenEditable.includes(app.status)) {
+        if (!canEmployeeEditOnboarding(app.status)) {
             return res.status(400).json({ message: 'Invalid state to edit' });
-
         }
 
         const payload = { ...req.body }
         delete payload.email;
         delete payload.status;
+        delete payload.action;
 
         Object.assign(app, payload);
 
-        if (req.body.action === 'submit') {
-            app.status = 'pending';
-            app.rejectionFeedback = '';
-        }
-
-        if (req.body.action === 'resubmit') {
+        if (req.body.action === 'submit' || req.body.action === 'resubmit') {
+            if (!canEmployeeSubmitOnboarding(app.status)) {
+                return res.status(400).json({ message: 'Invalid state transition for submit/resubmit' });
+            }
             app.status = 'pending';
             app.rejectionFeedback = '';
         }
@@ -88,18 +113,19 @@ exports.uploadOnboardingDoc = async (req, res, next) => {
         if (!req.body.docType) {
             return res.status(400).json({ message: 'docType is required' });
         }
-        let app = await OnboardingApplication.findOne({ employee: req.user.id });
+        let app = await normalizeApplicationOwner(await findMyApplication(req.user.id), req.user);
         if (!app) {
             app = await OnboardingApplication.create({
                 employee: req.user.id,
+                User: req.user.id,
                 email: req.user.email,
                 status: "in_progress",
                 emergencyContact: { firstName: '', lastName: '', relationship: '', phone: '' },
             });
         }
 
-        if (app.status === 'pending') {
-            return res.status(400).json({ message: 'Pending review; cannot upload new documents' });
+        if (!canEmployeeEditOnboarding(app.status)) {
+            return res.status(400).json({ message: 'Current onboarding status does not allow document upload' });
         }
 
         const doc = {
@@ -128,7 +154,7 @@ exports.uploadOnboardingDoc = async (req, res, next) => {
 // Download a document
 exports.downloadOnboardingDoc = async (req, res, next) => {
     try {
-        const app = await OnboardingApplication.findOne({ employee: req.user.id });
+        const app = await normalizeApplicationOwner(await findMyApplication(req.user.id), req.user);
         if (!app) return res.status(404).json({ message: 'Onboarding application not found' });
 
         const doc = app.uploadedDocs.find(d => d._id === req.params.docId);
@@ -144,7 +170,7 @@ exports.downloadOnboardingDoc = async (req, res, next) => {
 // Delete a document
 exports.deleteOnboardingDoc = async (req, res, next) => {
     try {
-        const app = await OnboardingApplication.findOne({ employee: req.user.id });
+        const app = await normalizeApplicationOwner(await findMyApplication(req.user.id), req.user);
         if (!app) return res.status(404).json({ message: 'Onboarding application not found' });
 
         const docIndex = app.uploadedDocs.findIndex(d => d._id === req.params.docId);
@@ -167,7 +193,7 @@ exports.deleteOnboardingDoc = async (req, res, next) => {
 // Preview a document
 exports.previewOnboardingDoc = async (req, res, next) => {
     try {
-        const app = await OnboardingApplication.findOne({ employee: req.user.id });
+        const app = await normalizeApplicationOwner(await findMyApplication(req.user.id), req.user);
         if (!app) return res.status(404).json({ message: 'Onboarding application not found' });
 
         const doc = app.uploadedDocs.find(d => d._id === req.params.docId);

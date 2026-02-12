@@ -52,6 +52,8 @@ const UploadDocumentSchema = new mongoose.Schema({
 
 const onboardingSchema = new mongoose.Schema({
     employee: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
+    // Legacy field kept for backward compatibility with existing DB index User_1.
+    User: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     // personal info
     firstName: { type: String, default: '' },
     lastName: { type: String, default: '' },
@@ -74,5 +76,10 @@ const onboardingSchema = new mongoose.Schema({
     status: { type: String, enum: allowedStatues, default: 'in_progress' },
     rejectionFeedback: { type: String, default: '' },
 }, { timestamps: true });
+
+onboardingSchema.pre('validate', function syncUserFields() {
+    if (!this.employee && this.User) this.employee = this.User;
+    if (!this.User && this.employee) this.User = this.employee;
+});
 
 module.exports = mongoose.model('OnboardingApplication', onboardingSchema);
