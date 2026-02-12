@@ -10,7 +10,7 @@ const Layout = ({ children, activePage }) => {
         <Box sx={{
             display: 'flex',
             bgcolor: '#F8F9FF',
-            height: '100vh',
+            minHeight: '100vh',
             overflow: 'hidden',
         }}>
             {/* 1. Sidebar */}
@@ -21,7 +21,7 @@ const Layout = ({ children, activePage }) => {
                 flexGrow: 1,
                 p: { xs: 2, sm: 3, md: 4 },
                 pb: { xs: 7, sm: 8, md: 10 },
-                height: '100vh',
+                minHeight: '100vh',
                 overflowY: 'auto',
                 overflowX: 'hidden',
                 scrollPaddingBottom: { xs: 28, sm: 32, md: 40 },

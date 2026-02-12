@@ -61,7 +61,8 @@ async function openOrDownloadDoc({ docId, mode, fileName }) {
 export default function Profile() {
     const dispatch = useDispatch();
     const { profile, loading, error } = useSelector((state) => state.profile);
-    const { application } = useSelector((state) => state.onboarding);
+    const { application, initialized } = useSelector((state) => state.onboarding);
+    const authUser = useSelector((state) => state.auth?.user);
 
     const [nameForm] = Form.useForm();
     const [addressForm] = Form.useForm();
@@ -71,10 +72,16 @@ export default function Profile() {
 
     useEffect(() => {
         dispatch(fetchProfile());
-        dispatch(fetchOnboarding());
-    }, [dispatch]);
+        if (!initialized) {
+            dispatch(fetchOnboarding());
+        }
+    }, [dispatch, initialized]);
 
-    const approvedApplication = application?.status === "approved" ? application : null;
+    const appOwnerId = application?.employee?._id || application?.employee || application?.User?._id || application?.User || null;
+    const currentUserId = authUser?._id || authUser?.id || null;
+    const approvedApplication = application?.status === "approved" && appOwnerId && currentUserId && String(appOwnerId) === String(currentUserId)
+        ? application
+        : null;
 
     const mergedProfile = useMemo(() => {
         if (!approvedApplication) return profile;
@@ -287,7 +294,7 @@ export default function Profile() {
     const docs = application?.uploadedDocs || [];
 
     return (
-        <Box>
+        <Box sx={{ pb: 6 }}>
             <PageHeader
                 title="My Profile"
                 subtitle="Overview / My Profile"

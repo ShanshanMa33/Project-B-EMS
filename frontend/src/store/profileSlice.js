@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import { api } from "../api/client";
+import { logout, signIn } from "./authSlice";
 
 // GET profile
 export const fetchProfile = createAsyncThunk("profile/fetch", async (_, thunkAPI) => {
@@ -33,6 +34,16 @@ const profileSlice = createSlice({
     reducers: {},
     extraReducers: (builder) => {
         builder
+            .addCase(signIn.fulfilled, (state) => {
+                state.profile = null;
+                state.error = null;
+                state.loading = false;
+            })
+            .addCase(logout, (state) => {
+                state.profile = null;
+                state.error = null;
+                state.loading = false;
+            })
             // fetch
             .addCase(fetchProfile.pending, (state) => {
                 state.loading = true;

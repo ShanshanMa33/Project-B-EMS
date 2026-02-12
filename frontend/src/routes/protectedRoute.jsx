@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { fetchOnboarding } from "../store/onboardingSlice";
@@ -12,6 +12,7 @@ import {
 export default function ProtectedRoute({ allowRoles }) {
     const location = useLocation();
     const dispatch = useDispatch();
+    const onboardingRefreshRef = useRef(false);
 
     const { token, user, loading: authLoading } = useSelector((state) => state.auth);
     const { loading, initialized, application } = useSelector((state) => state.onboarding);
@@ -27,6 +28,17 @@ export default function ProtectedRoute({ allowRoles }) {
         if (user || authLoading) return;
         dispatch(fetchCurrentUser());
     }, [dispatch, token, user, authLoading]);
+
+    useEffect(() => {
+        if (!token) {
+            onboardingRefreshRef.current = false;
+            return;
+        }
+        if (!user || !isEmployee) return;
+        if (onboardingRefreshRef.current) return;
+        onboardingRefreshRef.current = true;
+        dispatch(fetchOnboarding());
+    }, [dispatch, token, user, isEmployee]);
 
     useEffect(() => {
         if (!token || !user || !isEmployee) return;

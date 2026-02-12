@@ -271,12 +271,12 @@ function UploadDocsSection({ disabled, onUploaded, ensureCreated }) {
             formData.append("docType", docType);
             formData.append("file", fileObj);
 
-            await api.post(`${API_BASE}/documents`, formData, {
+            const res = await api.post(`${API_BASE}/documents`, formData, {
                 headers: { "Content-Type": "multipart/form-data" },
             });
             message.success("Document uploaded");
             setFileList([]);
-            await onUploaded?.();
+            await onUploaded?.(res?.data?.uploadedDocs);
         } catch (e) {
             message.error(e?.response?.data?.message || "Upload failed");
         } finally {
@@ -333,14 +333,17 @@ function UploadDocsSection({ disabled, onUploaded, ensureCreated }) {
 // Employee onboarding application page
 export default function EmployeeOnboarding() {
     const dispatch = useDispatch();
-    const { application, loading, error } = useSelector((s) => s.onboarding);
+    const { application, loading, error, initialized } = useSelector((s) => s.onboarding);
     const [form] = Form.useForm();
     const hydratedRef = useRef(false);
+    const [uploadedDocs, setUploadedDocs] = useState([]);
 
     // Load onboarding
     useEffect(() => {
-        dispatch(fetchOnboarding());
-    }, [dispatch]);
+        if (!initialized && !loading) {
+            dispatch(fetchOnboarding());
+        }
+    }, [dispatch, initialized, loading]);
 
     // Determine mode
     const status = application?.status || null;
@@ -367,11 +370,18 @@ export default function EmployeeOnboarding() {
     // Initialize form values
     useEffect(() => {
         if (!application) return;
-        // Avoid overwriting unsaved local edits after upload/fetch refresh.
-        if (hydratedRef.current && form.isFieldsTouched(true)) return;
+        if (hydratedRef.current) return;
+        if (form.isFieldsTouched(true)) {
+            hydratedRef.current = true;
+            return;
+        }
         form.setFieldsValue(toFormValues(application));
         hydratedRef.current = true;
     }, [application, form]);
+
+    useEffect(() => {
+        setUploadedDocs(Array.isArray(application?.uploadedDocs) ? application.uploadedDocs : []);
+    }, [application?.uploadedDocs]);
 
     // Ensure onboarding exists when user first visits (Mode A with null app)
     const ensureCreated = async () => {
@@ -381,25 +391,82 @@ export default function EmployeeOnboarding() {
     };
 
     const onSave = async () => {
-        await ensureCreated();
-        const values = await form.validateFields();
-        await dispatch(saveOnboarding(toPayload(values)));
-        await dispatch(fetchOnboarding());
+        if (application?.status === STATUS.PENDING || application?.status === STATUS.APPROVED) {
+            message.warning("This application is not editable while pending HR review.");
+            return;
+        }
+
+        try {
+            await ensureCreated();
+            const values = await form.validateFields();
+            await dispatch(saveOnboarding(toPayload(values)));
+            await dispatch(fetchOnboarding());
+        } catch (err) {
+            if (err?.errorFields) return; // validation errors already shown by antd
+            message.error(err?.message || "Failed to save onboarding");
+        }
     };
 
     const onSubmit = async () => {
-        await ensureCreated();
+        if (application?.status === STATUS.PENDING || application?.status === STATUS.APPROVED) {
+            message.warning("This application is already submitted and pending HR review.");
+            return;
+        }
 
-        // validate required fields for submission
-        const values = await form.validateFields();
-        await dispatch(saveOnboarding(toPayload(values)));
-        await dispatch(submitOnboarding());
-        await dispatch(fetchOnboarding());
+        try {
+            await ensureCreated();
+
+            // validate required fields for submission
+            const values = await form.validateFields();
+            await dispatch(saveOnboarding(toPayload(values)));
+            const submitResult = await dispatch(submitOnboarding("submit"));
+
+            if (submitOnboarding.rejected.match(submitResult)) {
+                const reason = String(submitResult.payload || submitResult.error?.message || "");
+                if (reason.toLowerCase().includes("invalid state")) {
+                    message.info("Your application is already pending HR review.");
+                    await dispatch(fetchOnboarding());
+                    return;
+                }
+                message.error(reason || "Failed to submit onboarding");
+                return;
+            }
+
+            await dispatch(fetchOnboarding());
+        } catch (err) {
+            if (err?.errorFields) return;
+            message.error(err?.message || "Failed to submit onboarding");
+        }
     };
 
     const onResubmit = async () => {
-        // same as submit for now
-        await onSubmit();
+        if (application?.status === STATUS.PENDING || application?.status === STATUS.APPROVED) {
+            message.warning("This application is already submitted and pending HR review.");
+            return;
+        }
+
+        try {
+            await ensureCreated();
+            const values = await form.validateFields();
+            await dispatch(saveOnboarding(toPayload(values)));
+            const submitResult = await dispatch(submitOnboarding("resubmit"));
+
+            if (submitOnboarding.rejected.match(submitResult)) {
+                const reason = String(submitResult.payload || submitResult.error?.message || "");
+                if (reason.toLowerCase().includes("invalid state")) {
+                    message.info("Your application is already pending HR review.");
+                    await dispatch(fetchOnboarding());
+                    return;
+                }
+                message.error(reason || "Failed to resubmit onboarding");
+                return;
+            }
+
+            await dispatch(fetchOnboarding());
+        } catch (err) {
+            if (err?.errorFields) return;
+            message.error(err?.message || "Failed to resubmit onboarding");
+        }
     };
 
     const workAuthCitizenOrPR = Form.useWatch(["workAuth", "isCitizenOrPR"], form);
@@ -407,8 +474,13 @@ export default function EmployeeOnboarding() {
 
     const deleteDoc = async (docId) => {
         if (!docId) return;
-        await api.delete(`${API_BASE}/documents/${docId}`);
-        dispatch(fetchOnboarding());
+        try {
+            await api.delete(`${API_BASE}/documents/${docId}`);
+            setUploadedDocs((prev) => prev.filter((d) => d._id !== docId));
+            message.success("Document deleted");
+        } catch (err) {
+            message.error(err?.response?.data?.message || "Failed to delete document");
+        }
     };
 
     return (
@@ -764,7 +836,7 @@ export default function EmployeeOnboarding() {
                                     {/* Documents (inside onboarding card) */}
                                     <Stack spacing={2}>
                                         <UploadedDocsList
-                                            docs={application?.uploadedDocs || []}
+                                            docs={uploadedDocs}
                                             readonly={readOnly}
                                             onDelete={deleteDoc}
                                         />
@@ -772,7 +844,11 @@ export default function EmployeeOnboarding() {
                                         <UploadDocsSection
                                             disabled={readOnly}
                                             ensureCreated={ensureCreated}
-                                            onUploaded={() => dispatch(fetchOnboarding())}
+                                            onUploaded={(docs) => {
+                                                if (Array.isArray(docs)) {
+                                                    setUploadedDocs(docs);
+                                                }
+                                            }}
                                         />
                                     </Stack>
 

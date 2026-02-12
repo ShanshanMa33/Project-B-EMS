@@ -1,16 +1,6 @@
 import React, { useMemo } from "react";
 
-/**
- * Reusable Visa timeline component
- *
- * Props:
- * - steps: Array<{ stepKey: string, title?: string, status: "not_started"|"in_progress"|"completed", updatedAt?: string|Date }>
- * - onStepClick?: (step) => void
- * - title?: string
- *
- * Usage:
- * <VisaTimeline steps={visaCase?.steps} />
- */
+
 function VisaTimeline({ steps = [], onStepClick, title = "Visa Timeline" }) {
     const normalized = useMemo(() => {
         const arr = Array.isArray(steps) ? steps : [];

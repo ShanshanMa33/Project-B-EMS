@@ -54,7 +54,7 @@ exports.createOrUpdateMyApplication = async (req, res, next) => {
             User: req.user.id,
             email: req.user.email,
             status: "in_progress",
-            emergencyContact: { firstName: '', lastName: '', relationship: '', phone: '' },
+            emergencyContact: [{ firstName: '', lastName: '', relationship: '', phone: '' }],
         });
         res.status(201).json(app);
     } catch (err) {
@@ -72,7 +72,7 @@ exports.updateMyOnboardingApplication = async (req, res, next) => {
                 User: req.user.id,
                 email: req.user.email,
                 status: "in_progress",
-                emergencyContact: { firstName: '', lastName: '', relationship: '', phone: '' },
+                emergencyContact: [{ firstName: '', lastName: '', relationship: '', phone: '' }],
             });
         }
 
@@ -84,6 +84,12 @@ exports.updateMyOnboardingApplication = async (req, res, next) => {
         delete payload.email;
         delete payload.status;
         delete payload.action;
+
+        if (payload.emergencyContact) {
+            payload.emergencyContact = Array.isArray(payload.emergencyContact)
+                ? payload.emergencyContact
+                : [payload.emergencyContact];
+        }
 
         Object.assign(app, payload);
 
@@ -120,7 +126,7 @@ exports.uploadOnboardingDoc = async (req, res, next) => {
                 User: req.user.id,
                 email: req.user.email,
                 status: "in_progress",
-                emergencyContact: { firstName: '', lastName: '', relationship: '', phone: '' },
+                emergencyContact: [{ firstName: '', lastName: '', relationship: '', phone: '' }],
             });
         }
 

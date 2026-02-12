@@ -247,8 +247,10 @@ async function reviewApplication(req, res) {
     app.status = targetStatus;
     if (targetStatus === 'rejected') {
         app.rejectionFeedback = (feedback || '').trim();
+        app.approvedAt = null;
     } else {
         app.rejectionFeedback = '';
+        app.approvedAt = new Date();
     }
     await app.save();
 
