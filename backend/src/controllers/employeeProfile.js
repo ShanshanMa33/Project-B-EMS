@@ -16,8 +16,14 @@ exports.getEmployeeProfile = async (req, res, next) => {
             });
         }
 
+        // Keep profile email in sync with auth user email as single source of truth.
+        if (req.user?.email && profile.email !== req.user.email) {
+            profile.email = req.user.email;
+            await profile.save();
+        }
+
         const result = profile.toObject();
-        if (!result.email && req.user?.email) {
+        if (req.user?.email) {
             result.email = req.user.email;
         }
 
@@ -48,9 +54,17 @@ exports.updateEmployeeProfile = async (req, res, next) => {
         }
 
         profile.set(updates);
+        if (req.user?.email) {
+            profile.email = req.user.email;
+        }
         await profile.save();
 
-        res.json(profile);
+        const result = profile.toObject();
+        if (req.user?.email) {
+            result.email = req.user.email;
+        }
+
+        res.json(result);
     } catch (error) {
         if (error?.name === 'ValidationError') {
             return res.status(400).json({ message: error.message });

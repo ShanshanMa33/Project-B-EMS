@@ -15,3 +15,16 @@ api.interceptors.request.use(config => {
 }, error => {
     return Promise.reject(error);
 });
+
+api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        const status = error?.response?.status;
+        if (status === 401) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.dispatchEvent(new Event('auth:expired'));
+        }
+        return Promise.reject(error);
+    }
+);

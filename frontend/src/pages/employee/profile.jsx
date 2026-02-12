@@ -8,9 +8,7 @@ import PageHeader from "../../components/PageHeader";
 import EditableSection from "../../components/editableSection";
 import { fetchProfile, updateProfile } from "../../store/profileSlice";
 import { fetchOnboarding } from "../../store/onboardingSlice";
-import { api } from "../../api/client";
-
-const API_BASE = "/api/onboarding";
+import { downloadOnboardingDocument, previewOnboardingDocument } from "../../api/onboardingApi";
 
 const GENDER_OPTIONS = [
     { value: "male", label: "Male" },
@@ -19,6 +17,8 @@ const GENDER_OPTIONS = [
 ];
 
 const VISA_TYPES = [
+    { value: "Citizen", label: "Citizen" },
+    { value: "Green Card", label: "Green Card" },
     { value: "H1-B", label: "H1-B" },
     { value: "L2", label: "L2" },
     { value: "F1(CPT/OPT)", label: "F1 (CPT/OPT)" },
@@ -34,12 +34,9 @@ const DOC_TYPE_LABELS = {
 };
 
 async function openOrDownloadDoc({ docId, mode, fileName }) {
-    const endpoint =
-        mode === "preview"
-            ? `${API_BASE}/documents/${docId}/preview`
-            : `${API_BASE}/documents/${docId}`;
-
-    const res = await api.get(endpoint, { responseType: "blob" });
+    const res = mode === "preview"
+        ? await previewOnboardingDocument(docId)
+        : await downloadOnboardingDocument(docId);
     const contentType = res?.headers?.["content-type"] || "application/pdf";
     const blob = res.data instanceof Blob ? res.data : new Blob([res.data], { type: contentType });
     const url = window.URL.createObjectURL(blob);
@@ -61,7 +58,7 @@ async function openOrDownloadDoc({ docId, mode, fileName }) {
 export default function Profile() {
     const dispatch = useDispatch();
     const { profile, loading, error } = useSelector((state) => state.profile);
-    const { application, initialized } = useSelector((state) => state.onboarding);
+    const { application, initialized: onboardingInitialized } = useSelector((state) => state.onboarding);
     const authUser = useSelector((state) => state.auth?.user);
 
     const [nameForm] = Form.useForm();
@@ -72,58 +69,63 @@ export default function Profile() {
 
     useEffect(() => {
         dispatch(fetchProfile());
-        if (!initialized) {
+        if (!onboardingInitialized && String(authUser?.role || "").toLowerCase() === "employee") {
             dispatch(fetchOnboarding());
         }
-    }, [dispatch, initialized]);
+    }, [dispatch, authUser?.role, onboardingInitialized]);
 
-    const appOwnerId = application?.employee?._id || application?.employee || application?.User?._id || application?.User || null;
-    const currentUserId = authUser?._id || authUser?.id || null;
-    const approvedApplication = application?.status === "approved" && appOwnerId && currentUserId && String(appOwnerId) === String(currentUserId)
-        ? application
-        : null;
+    const approvedApplication = application?.status === "approved" ? application : null;
 
     const mergedProfile = useMemo(() => {
-        if (!approvedApplication) return profile;
+        const base = {
+            ...profile,
+            email: profile?.email || authUser?.email || "",
+        };
+
+        if (!approvedApplication) return base;
 
         const emergency = Array.isArray(approvedApplication.emergencyContact)
             ? approvedApplication.emergencyContact[0]
             : approvedApplication.emergencyContact;
 
         return {
-            ...profile,
-            firstName: approvedApplication.firstName || profile?.firstName,
-            lastName: approvedApplication.lastName || profile?.lastName,
-            middleName: approvedApplication.middleName || profile?.middleName,
-            preferredName: approvedApplication.preferredName || profile?.preferredName,
-            email: approvedApplication.email || profile?.email,
-            ssn: approvedApplication.ssn || profile?.ssn,
-            dob: approvedApplication.dob || profile?.dob,
-            gender: approvedApplication.gender || profile?.gender,
+            ...base,
+            firstName: approvedApplication.firstName || base?.firstName,
+            lastName: approvedApplication.lastName || base?.lastName,
+            middleName: approvedApplication.middleName || base?.middleName,
+            preferredName: approvedApplication.preferredName || base?.preferredName,
+            email: approvedApplication.email || base?.email,
+            ssn: approvedApplication.ssn || base?.ssn,
+            dob: approvedApplication.dob || base?.dob,
+            gender: approvedApplication.gender || base?.gender,
             address: {
-                line1: approvedApplication.address?.AddressLine1 || profile?.address?.line1 || "",
-                line2: approvedApplication.address?.AddressLine2 || profile?.address?.line2 || "",
-                city: approvedApplication.address?.City || profile?.address?.city || "",
-                state: approvedApplication.address?.State || profile?.address?.state || "",
-                zipCode: approvedApplication.address?.ZipCode || profile?.address?.zipCode || "",
+                line1: approvedApplication.address?.AddressLine1 || base?.address?.line1 || "",
+                line2: approvedApplication.address?.AddressLine2 || base?.address?.line2 || "",
+                city: approvedApplication.address?.City || base?.address?.city || "",
+                state: approvedApplication.address?.State || base?.address?.state || "",
+                zipCode: approvedApplication.address?.ZipCode || base?.address?.zipCode || "",
             },
-            cellPhone: approvedApplication.cellPhone || profile?.cellPhone,
-            workPhone: approvedApplication.workPhone || profile?.workPhone,
+            cellPhone: approvedApplication.cellPhone || base?.cellPhone,
+            workPhone: approvedApplication.workPhone || base?.workPhone,
             employment: {
-                visaTitle: approvedApplication.workAuth?.visaType || profile?.employment?.visaTitle || "",
-                startDate: approvedApplication.workAuth?.startDate || profile?.employment?.startDate || null,
-                endDate: approvedApplication.workAuth?.endDate || profile?.employment?.endDate || null,
+                visaTitle: (
+                    approvedApplication.workAuth?.isCitizenOrPR === true
+                        ? approvedApplication.workAuth?.citizenOrGreenCard
+                        : approvedApplication.workAuth?.visaType
+                ) || base?.employment?.visaTitle || "",
+                startDate: approvedApplication.workAuth?.startDate || base?.employment?.startDate || null,
+                endDate: approvedApplication.workAuth?.endDate || base?.employment?.endDate || null,
             },
             emergencyContact: {
-                firstName: emergency?.firstName || profile?.emergencyContact?.firstName || "",
-                lastName: emergency?.lastName || profile?.emergencyContact?.lastName || "",
-                middleName: emergency?.middleName || profile?.emergencyContact?.middleName || "",
-                email: emergency?.email || profile?.emergencyContact?.email || "",
-                phone: emergency?.phone || profile?.emergencyContact?.phone || "",
-                relationship: emergency?.relationship || profile?.emergencyContact?.relationship || "",
+                firstName: emergency?.firstName || base?.emergencyContact?.firstName || "",
+                lastName: emergency?.lastName || base?.emergencyContact?.lastName || "",
+                middleName: emergency?.middleName || base?.emergencyContact?.middleName || "",
+                email: emergency?.email || base?.emergencyContact?.email || "",
+                phone: emergency?.phone || base?.emergencyContact?.phone || "",
+                relationship: emergency?.relationship || base?.emergencyContact?.relationship || "",
             },
         };
-    }, [approvedApplication, profile]);
+    }, [approvedApplication, profile, authUser?.email]);
 
     const nameInitialValues = useMemo(() => {
         return {
@@ -294,7 +296,7 @@ export default function Profile() {
     const docs = application?.uploadedDocs || [];
 
     return (
-        <Box sx={{ pb: 6 }}>
+        <Box sx={{ pb: { xs: 8, md: 12 } }}>
             <PageHeader
                 title="My Profile"
                 subtitle="Overview / My Profile"

@@ -1,25 +1,14 @@
 import React from "react";
 import { Button, Space, message } from "antd";
-import { useSelector } from "react-redux";
+import { fetchFileBlob } from "../api/fileApi";
 
 // A reusable component for previewing/downloading visa documents with auth
 export default function DocAction({ previewUrl, downloadUrl }) {
-    const token = useSelector((state) => state.auth.token);
-
     // Helper function to open preview/download links with auth
     async function openWithAuth(url, filename, isDownload = false) {
         try {
-            const res = await fetch(url, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-            });
-
-            if (!res.ok) {
-                throw new Error("Failed to load file");
-            }
-
-            const blob = await res.blob();
+            const res = await fetchFileBlob(url);
+            const blob = res.data instanceof Blob ? res.data : new Blob([res.data]);
             const blobUrl = window.URL.createObjectURL(blob);
             // For download, we create a temporary link and click it; for preview, we open in a new tab
             if (isDownload) {

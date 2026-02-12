@@ -21,7 +21,7 @@ import {
 
 const ROWS_PER_PAGE = 5;
 const TAB_OPTIONS = ['Pending', 'Rejected', 'Approved'];
-const TABLE_HEADERS = ['CANDIDATE', 'POSITION', 'STATUS', 'DATE', 'APPLICATION', 'ACTION'];
+const BASE_TABLE_HEADERS = ['CANDIDATE', 'POSITION', 'STATUS', 'DATE', 'APPLICATION'];
 
 const tableHeaderSx = {
     color: '#94a3b8',
@@ -33,7 +33,7 @@ const tableHeaderSx = {
 
 const HiringManagement = () => {
     const dispatch = useDispatch();
-    const { applications, applicationsLoading: loading, actionLoading, applicationDetailLoading, applicationDetail } = useSelector((state) => state.hr);
+    const { applications, applicationsLoading: loading, actionLoading, applicationDetailLoading, applicationDetail, error } = useSelector((state) => state.hr);
 
     const [search, setSearch] = useState('');
     const [tabValue, setTabValue] = useState('Pending');
@@ -44,6 +44,7 @@ const HiringManagement = () => {
     const [rejectFeedback, setRejectFeedback] = useState('');
     const [applicationOpen, setApplicationOpen] = useState(false);
     const [confirmAction, setConfirmAction] = useState(null);
+    const showActionColumn = tabValue === 'Pending';
 
     useEffect(() => {
         dispatch(fetchHRApplications());
@@ -201,6 +202,11 @@ const HiringManagement = () => {
                         <SearchBar placeholder="Search..." value={search} onChange={handleSearchChange} />
                     </Box>
                 </Box>
+                {error ? (
+                    <Typography sx={{ color: '#dc2626', mb: 2 }}>
+                        {error}
+                    </Typography>
+                ) : null}
 
                 <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
                     <Tabs value={tabValue} onChange={handleTabChange} aria-label="application tabs">
@@ -219,7 +225,7 @@ const HiringManagement = () => {
                     <Table>
                         <TableHead>
                             <TableRow>
-                                {TABLE_HEADERS.map((head) => (
+                                {[...BASE_TABLE_HEADERS, ...(showActionColumn ? ['ACTION'] : [])].map((head) => (
                                     <TableCell key={head} sx={tableHeaderSx}>
                                         {head}
                                     </TableCell>
@@ -259,21 +265,23 @@ const HiringManagement = () => {
                                             </Button>
                                         </TableCell>
 
-                                        <TableCell>
-                                            <ApplicationActionCell
-                                                row={row}
-                                                disabled={isActing}
-                                                onApprove={() => openConfirmAction(row, 'Approved')}
-                                                onReject={() => openRejectDialog(row)}
-                                            />
-                                        </TableCell>
+                                        {showActionColumn && (
+                                            <TableCell>
+                                                <ApplicationActionCell
+                                                    row={row}
+                                                    disabled={isActing}
+                                                    onApprove={() => openConfirmAction(row, 'Approved')}
+                                                    onReject={() => openRejectDialog(row)}
+                                                />
+                                            </TableCell>
+                                        )}
                                     </TableRow>
                                 );
                             })}
 
                             {!loading && paginatedApps.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={6} align="center" sx={{ py: 5, color: '#64748b' }}>
+                                    <TableCell colSpan={showActionColumn ? 6 : 5} align="center" sx={{ py: 5, color: '#64748b' }}>
                                         No applications found
                                     </TableCell>
                                 </TableRow>

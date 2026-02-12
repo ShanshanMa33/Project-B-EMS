@@ -2,7 +2,9 @@ import React, { useMemo, useState } from "react";
 import { Box, Typography } from "@mui/material";
 import { Button, Upload, message } from "antd";
 import { UploadOutlined } from "@ant-design/icons";
-import { api } from "../../api/client";
+import { useDispatch } from "react-redux";
+import { uploadVisaDocumentApi } from "../../api/visaApi";
+import { fetchVisaCases } from "../../store/visaSlice";
 
 export default function VisaDocUploader({
     docType,
@@ -11,8 +13,8 @@ export default function VisaDocUploader({
     currentStatus,
     rejectionReason,
     onUploaded,
-    uploadUrl = "/api/visa/me/documents",
 }) {
+    const dispatch = useDispatch();
     const [fileList, setFileList] = useState([]);
     const [uploading, setUploading] = useState(false);
 
@@ -32,13 +34,9 @@ export default function VisaDocUploader({
 
         setUploading(true);
         try {
-            const formData = new FormData();
-            formData.append("docType", docType);
-            formData.append("file", fileObj);
-
-            await api.post(uploadUrl, formData, {
-                headers: { "Content-Type": "multipart/form-data" },
-            });
+            await uploadVisaDocumentApi({ docType, file: fileObj });
+            await dispatch(fetchVisaCases()).unwrap();
+            dispatch({ type: "hr/invalidateVisaRows" });
 
             message.success("Document uploaded.");
             setFileList([]);

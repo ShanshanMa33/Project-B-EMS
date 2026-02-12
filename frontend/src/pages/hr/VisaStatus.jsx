@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Box, Button, Chip, Paper, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, Typography } from '@mui/material';
+import { Box, Button, Chip, CircularProgress, Paper, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, Typography } from '@mui/material';
 import { useDispatch, useSelector } from 'react-redux';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import AssignmentIcon from '@mui/icons-material/Assignment';
@@ -13,18 +13,25 @@ import SearchBar from '../../components/SearchBar';
 import TableFilter from '../../components/TableFilter';
 import CustomPagination from '../../components/CustomPagination';
 import StatusBadge from '../../components/StatusBadge';
-import { getHRVisaDocumentDownloadUrl, getHRVisaDocumentPreviewUrl } from '../../api/hr';
+import { fetchFileBlob } from '../../api/fileApi';
+import {
+    getHROnboardingDocumentDownloadUrl,
+    getHROnboardingDocumentPreviewUrl,
+    getHRVisaDocumentDownloadUrl,
+    getHRVisaDocumentPreviewUrl,
+} from '../../api/hr';
 import { fetchHRVisaRows, reviewHRVisaDocumentThunk, sendHRVisaReminderThunk } from '../../store/hrSlice';
 
 const ROWS_PER_PAGE = 5;
 const EXPIRING_SOON_DAYS = 100;
-const WORK_AUTH_OPTIONS = ['H1-B', 'F1(OPT)', 'F1(STEM)', 'Citizen'];
+const WORK_AUTH_OPTIONS = ['H1-B', 'L2', 'H4', 'F1(OPT)', 'Citizen', 'Green Card', 'Other'];
 
 const headerCellSx = {
     color: '#94a3b8',
     fontWeight: 700,
     fontSize: '0.75rem',
     borderBottom: '1px solid #f1f5f9',
+    whiteSpace: 'nowrap',
 };
 
 function renderDaysLeft(daysLeft) {
@@ -57,6 +64,9 @@ function renderDaysLeft(daysLeft) {
 const VisaStatus = () => {
     const dispatch = useDispatch();
     const visaRows = useSelector((state) => state.hr.visaRows);
+    const visaLoading = useSelector((state) => state.hr.visaLoading);
+    const visaInitialized = useSelector((state) => state.hr.visaInitialized);
+    const visaError = useSelector((state) => state.hr.error);
     const actionLoading = useSelector((state) => state.hr.actionLoading);
 
     const [tabValue, setTabValue] = useState(0);
@@ -68,6 +78,12 @@ const VisaStatus = () => {
     useEffect(() => {
         dispatch(fetchHRVisaRows());
     }, [dispatch]);
+
+    useEffect(() => {
+        if (!visaInitialized && !visaLoading) {
+            dispatch(fetchHRVisaRows());
+        }
+    }, [dispatch, visaInitialized, visaLoading]);
 
     const inProgressList = useMemo(() => visaRows.filter((row) => row.inProgress), [visaRows]);
     const expiringSoonCount = useMemo(
@@ -105,7 +121,29 @@ const VisaStatus = () => {
         setSearch('');
     };
 
-    const openExternal = (url) => window.open(url, '_blank', 'noopener,noreferrer');
+    const openExternal = async (url, { download = false, fileName = 'document' } = {}) => {
+        try {
+            const res = await fetchFileBlob(url);
+            const blob = res?.data instanceof Blob ? res.data : new Blob([res?.data]);
+            const blobUrl = window.URL.createObjectURL(blob);
+
+            if (download) {
+                const link = document.createElement('a');
+                link.href = blobUrl;
+                link.download = fileName;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } else {
+                window.open(blobUrl, '_blank', 'noopener,noreferrer');
+            }
+
+            window.setTimeout(() => window.URL.revokeObjectURL(blobUrl), 10000);
+        } catch (error) {
+            console.error('Open document failed:', error);
+            alert('Unable to open document');
+        }
+    };
 
     const handleSendReminder = async (row) => {
         if (!row?.email || sendingId || actionLoading) {
@@ -134,6 +172,10 @@ const VisaStatus = () => {
     const handleReviewDoc = async (row, status) => {
         const doc = row.pendingReviewDoc;
         if (!doc || sendingId || actionLoading) return;
+        if (doc.source && doc.source !== 'visa') {
+            alert('This document is from onboarding flow. Please review it in onboarding management.');
+            return;
+        }
 
         const feedback = status === 'rejected' ? window.prompt('Please enter feedback for rejection:', '') || '' : '';
         if (status === 'rejected' && !feedback.trim()) return;
@@ -226,7 +268,13 @@ const VisaStatus = () => {
                         </TableHead>
 
                         <TableBody>
-                            {paginatedData.map((row) => (
+                            {visaLoading ? (
+                                <TableRow>
+                                    <TableCell colSpan={tabValue === 0 ? 7 : 6} align="center" sx={{ py: 5 }}>
+                                        <CircularProgress />
+                                    </TableCell>
+                                </TableRow>
+                            ) : paginatedData.map((row) => (
                                 <TableRow key={row.id} hover sx={{ '& td': { borderBottom: '1px solid #f8fafc' }, cursor: 'pointer' }}>
                                     <TableCell sx={{ fontWeight: 600, color: '#1e293b' }}>{row.name}</TableCell>
                                     <TableCell>
@@ -247,7 +295,13 @@ const VisaStatus = () => {
                                                             <Button
                                                                 size="small"
                                                                 variant="outlined"
-                                                                onClick={() => openExternal(getHRVisaDocumentPreviewUrl(row.id, row.pendingReviewDoc.docId))}
+                                                                onClick={() =>
+                                                                    openExternal(
+                                                                        row.pendingReviewDoc.source === 'onboarding'
+                                                                            ? getHROnboardingDocumentPreviewUrl(row.id, row.pendingReviewDoc.docId)
+                                                                            : getHRVisaDocumentPreviewUrl(row.id, row.pendingReviewDoc.docId)
+                                                                    )
+                                                                }
                                                             >
                                                                 Preview
                                                             </Button>
@@ -272,39 +326,66 @@ const VisaStatus = () => {
                                                         </Box>
                                                     </Box>
                                                 ) : (
-                                                    <Button
-                                                        variant="outlined"
-                                                        size="small"
-                                                        startIcon={<SendIcon />}
-                                                        disabled={sendingId === row.id || actionLoading}
-                                                        onClick={() => handleSendReminder(row)}
-                                                        sx={{
-                                                            textTransform: 'none',
-                                                            borderRadius: '8px',
-                                                            borderColor: '#e2e8f0',
-                                                            color: '#475569',
-                                                            '&:hover': { borderColor: '#3b82f6', color: '#3b82f6', bgcolor: '#eff6ff' },
-                                                        }}
-                                                    >
-                                                        Send Notification
-                                                    </Button>
+                                                    <Box sx={{ display: 'flex', gap: 0.8, flexWrap: 'wrap' }}>
+                                                        {row.pendingReviewDoc ? (
+                                                            <Button
+                                                                size="small"
+                                                                variant="outlined"
+                                                                onClick={() =>
+                                                                    openExternal(
+                                                                        row.pendingReviewDoc.source === 'onboarding'
+                                                                            ? getHROnboardingDocumentPreviewUrl(row.id, row.pendingReviewDoc.docId)
+                                                                            : getHRVisaDocumentPreviewUrl(row.id, row.pendingReviewDoc.docId)
+                                                                    )
+                                                                }
+                                                            >
+                                                                Preview
+                                                            </Button>
+                                                        ) : null}
+                                                        <Button
+                                                            variant="outlined"
+                                                            size="small"
+                                                            startIcon={<SendIcon />}
+                                                            disabled={sendingId === row.id || actionLoading || row.actionType === 'none'}
+                                                            onClick={() => handleSendReminder(row)}
+                                                            sx={{
+                                                                textTransform: 'none',
+                                                                whiteSpace: 'nowrap',
+                                                                borderRadius: '8px',
+                                                                borderColor: '#e2e8f0',
+                                                                color: '#475569',
+                                                                minWidth: 'max-content',
+                                                                '&:hover': { borderColor: '#3b82f6', color: '#3b82f6', bgcolor: '#eff6ff' },
+                                                            }}
+                                                        >
+                                                            Send Notification
+                                                        </Button>
+                                                    </Box>
                                                 )}
                                             </TableCell>
                                         </>
                                     ) : (
                                         <TableCell sx={{ color: '#64748b', maxWidth: 320 }}>
-                                            {row.approvedDocuments?.length ? (
+                                            {row.documents?.length ? (
                                                 <Box sx={{ display: 'grid', gap: 0.8 }}>
-                                                    {row.approvedDocuments.map((doc) => {
-                                                        const previewUrl = getHRVisaDocumentPreviewUrl(row.id, doc.docId);
-                                                        const downloadUrl = getHRVisaDocumentDownloadUrl(row.id, doc.docId);
+                                                    {row.documents.map((doc) => {
+                                                        const previewUrl = doc.source === 'onboarding'
+                                                            ? getHROnboardingDocumentPreviewUrl(row.id, doc.docId)
+                                                            : getHRVisaDocumentPreviewUrl(row.id, doc.docId);
+                                                        const downloadUrl = doc.source === 'onboarding'
+                                                            ? getHROnboardingDocumentDownloadUrl(row.id, doc.docId)
+                                                            : getHRVisaDocumentDownloadUrl(row.id, doc.docId);
                                                         return (
                                                             <Box key={`${row.id}-${doc.docId}`} sx={{ display: 'flex', alignItems: 'center', gap: 0.8, flexWrap: 'wrap' }}>
                                                                 <Chip size="small" label={doc.label} sx={{ bgcolor: '#ecfeff', color: '#0e7490', fontWeight: 700 }} />
                                                                 <Button size="small" variant="outlined" onClick={() => openExternal(previewUrl)}>
                                                                     Preview
                                                                 </Button>
-                                                                <Button size="small" variant="contained" onClick={() => openExternal(downloadUrl)}>
+                                                                <Button
+                                                                    size="small"
+                                                                    variant="contained"
+                                                                    onClick={() => openExternal(downloadUrl, { download: true, fileName: doc.originalName || 'document' })}
+                                                                >
                                                                     Download
                                                                 </Button>
                                                             </Box>
@@ -319,13 +400,20 @@ const VisaStatus = () => {
                                 </TableRow>
                             ))}
 
-                            {paginatedData.length === 0 && (
+                            {!visaLoading && paginatedData.length === 0 && (
                                 <TableRow>
                                     <TableCell colSpan={tabValue === 0 ? 7 : 6} align="center" sx={{ py: 5, color: '#64748b' }}>
                                         No records found
                                     </TableCell>
                                 </TableRow>
                             )}
+                            {!visaLoading && visaError ? (
+                                <TableRow>
+                                    <TableCell colSpan={tabValue === 0 ? 7 : 6} align="center" sx={{ py: 2, color: '#dc2626' }}>
+                                        {visaError}
+                                    </TableCell>
+                                </TableRow>
+                            ) : null}
                         </TableBody>
                     </Table>
                 </TableContainer>

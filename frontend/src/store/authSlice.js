@@ -1,40 +1,43 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { api } from '../api/client';
+import {
+    login,
+    registerWithInvitationToken,
+} from '../api/authApi';
+import { getUserMe } from '../api/userApi';
+
+const getApiErrorMessage = (error, fallback) =>
+    error?.response?.data?.message
+    || error?.response?.data?.error
+    || error?.message
+    || fallback;
 
 // Async thunk for user sign-in
 export const signIn = createAsyncThunk("auth/signin", async (payload, thunkAPI) => {
     try {
-        const response = await api.post("/api/auth/signin", {
-            username: payload.username,
-            password: payload.password,
-        });
+        const response = await login(payload);
         return response.data;
     } catch (error) {
-        return thunkAPI.rejectWithValue(error.response?.data || { message: "Sign-in failed" });
+        return thunkAPI.rejectWithValue(getApiErrorMessage(error, "Sign-in failed"));
     }
 });
 
 // Async thunk to fetch current user info
 export const fetchCurrentUser = createAsyncThunk("auth/me", async (_, thunkAPI) => {
     try {
-        const response = await api.get("/api/auth/me");
+        const response = await getUserMe();
         return response.data;
     } catch (error) {
-        return thunkAPI.rejectWithValue(error.response.data || { message: "Failed to fetch user" });
+        return thunkAPI.rejectWithValue(getApiErrorMessage(error, "Failed to fetch user"));
     }
 });
 
 // Async thunk for registration with invitation token
 export const registerWithToken = createAsyncThunk("auth/registerWithToken", async (payload, thunkAPI) => {
     try {
-        const response = await api.post("/api/auth/register-with-token", {
-            token: payload.token,
-            username: payload.username,
-            password: payload.password,
-        });
+        const response = await registerWithInvitationToken(payload);
         return response.data;
     } catch (error) {
-        return thunkAPI.rejectWithValue(error.response?.data || { message: "Registration failed" });
+        return thunkAPI.rejectWithValue(getApiErrorMessage(error, "Registration failed"));
     }
 });
 
@@ -70,7 +73,7 @@ const authSlice = createSlice({
             // Handle sign-in failure
             .addCase(signIn.rejected, (state, action) => {
                 state.loading = false;
-                state.error = action.payload?.message || action.error?.message || "Sign-in failed";
+                state.error = action.payload || "Sign-in failed";
             })
             // Handle fetching current user info
             .addCase(fetchCurrentUser.fulfilled, (state, action) => {
@@ -84,7 +87,11 @@ const authSlice = createSlice({
             })
             .addCase(fetchCurrentUser.rejected, (state, action) => {
                 state.loading = false;
-                state.error = action.payload?.message || "Failed to fetch user";
+                state.error = action.payload || "Failed to fetch user";
+                state.token = null;
+                state.user = null;
+                localStorage.removeItem("token");
+                localStorage.removeItem("user");
             })
             .addCase(registerWithToken.pending, (state) => {
                 state.loading = true;
@@ -95,7 +102,7 @@ const authSlice = createSlice({
             })
             .addCase(registerWithToken.rejected, (state, action) => {
                 state.loading = false;
-                state.error = action.payload?.message || "Registration failed";
+                state.error = action.payload || "Registration failed";
             });
     }
 });

@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Alert, Button, Card, Form, Input, message } from "antd";
 import { registerWithToken } from "../../store/authSlice";
-import { api } from "../../api/client";
+import { getRegistrationTokenStatus } from "../../api/authApi";
 
 export default function Register() {
     const dispatch = useDispatch();
@@ -27,9 +27,7 @@ export default function Register() {
         let alive = true;
         (async () => {
             try {
-                const res = await api.get("/api/auth/registration-token-status", {
-                    params: { token: tokenFromQuery },
-                });
+                const res = await getRegistrationTokenStatus(tokenFromQuery);
                 if (!alive) return;
 
                 const status = String(res.data?.status || "").toLowerCase();

@@ -4,6 +4,94 @@ const { uploadDir } = require("../middleware/uploadVisa");
 const VisaCase = require("../models/visaCase");
 
 const DOC_ORDER = ["OPT_RECEIPT", "OPT_EAD", "I-983", "I-20"];
+const DOC_LABELS = {
+    OPT_RECEIPT: "OPT Receipt",
+    OPT_EAD: "OPT EAD",
+    "I-983": "I-983",
+    "I-20": "I-20",
+};
+
+function computeVisaCaseStatus(docs = []) {
+    const docsByType = new Map();
+    for (const doc of docs || []) {
+        if (!doc?.docType) continue;
+        docsByType.set(doc.docType, doc);
+    }
+
+    for (const docType of DOC_ORDER) {
+        const doc = docsByType.get(docType);
+        const label = DOC_LABELS[docType] || docType;
+
+        if (!doc) {
+            return {
+                status: "action_required",
+                nextDoc: docType,
+                nextDocLabel: label,
+                reason: "missing",
+            };
+        }
+        if (doc.status === "rejected") {
+            return {
+                status: "action_required",
+                nextDoc: docType,
+                nextDocLabel: label,
+                reason: "rejected",
+            };
+        }
+        if (doc.status === "pending") {
+            return {
+                status: "pending",
+                nextDoc: docType,
+                nextDocLabel: label,
+                reason: "pending",
+            };
+        }
+        if (doc.status !== "approved") {
+            return {
+                status: "action_required",
+                nextDoc: docType,
+                nextDocLabel: label,
+                reason: "missing",
+            };
+        }
+    }
+
+    return {
+        status: "approved",
+        nextDoc: null,
+        nextDocLabel: "",
+        reason: "approved",
+    };
+}
+
+function mapVisaCaseStatusToNextStep(statusInfo) {
+    const normalized = typeof statusInfo === "string"
+        ? { status: statusInfo, reason: statusInfo === "approved" ? "approved" : "pending", nextDocLabel: "" }
+        : (statusInfo || {});
+    const docLabel = normalized.nextDocLabel || normalized.nextDoc || "document";
+
+    if (normalized.reason === "missing") return `Waiting for employee to upload ${docLabel}`;
+    if (normalized.reason === "pending") return `Waiting for HR review (${docLabel})`;
+    if (normalized.reason === "rejected") return `Employee needs to re-upload ${docLabel}`;
+    if (normalized.status === "approved") return "All documents approved";
+    return "Waiting for HR review";
+}
+
+function mapDocumentForResponse(doc) {
+    return {
+        docId: String(doc?._id || ''),
+        docType: doc?.docType || '',
+        originalName: doc?.originalName || '',
+        storedName: doc?.storedName || '',
+        mimeType: doc?.mimeType || '',
+        size: doc?.size || 0,
+        uploadedAt: doc?.uploadedAt || null,
+        status: doc?.status || 'pending',
+        reviewStatus: doc?.status || 'pending',
+        feedback: doc?.feedback || '',
+        reviewFeedback: doc?.feedback || '',
+    };
+}
 
 function canUploadNext(docs, nextKey) {
     const nextIndex = DOC_ORDER.indexOf(nextKey);
@@ -21,6 +109,7 @@ function canUploadNext(docs, nextKey) {
 // Get the current user's visa cases
 async function getMyVisaCases(req, res, next) {
     try {
+        res.set('Cache-Control', 'no-store');
         const userId = req.user._id;
 
         const visaCase = await VisaCase.findOneAndUpdate(
@@ -29,7 +118,16 @@ async function getMyVisaCases(req, res, next) {
             { new: true, upsert: true }
         ).lean();
 
-        return res.status(200).json(visaCase);
+        const normalizedDocuments = (visaCase?.documents || []).map(mapDocumentForResponse);
+        const statusInfo = computeVisaCaseStatus(visaCase?.documents || []);
+        const caseStatus = statusInfo.status;
+        const nextStep = mapVisaCaseStatusToNextStep(statusInfo);
+        return res.status(200).json({
+            ...visaCase,
+            documents: normalizedDocuments,
+            status: caseStatus,
+            nextStep,
+        });
     } catch (error) {
         return next(error);
     }
@@ -38,6 +136,7 @@ async function getMyVisaCases(req, res, next) {
 // Upload a new visa document for the current user
 async function uploadVisaDocuments(req, res, next) {
     try {
+        res.set('Cache-Control', 'no-store');
         const userId = req.user._id;
         const { docType } = req.body || {};
 
@@ -111,9 +210,18 @@ async function uploadVisaDocuments(req, res, next) {
 
         await visaCaseDoc.save();
 
+        const statusInfo = computeVisaCaseStatus(visaCaseDoc.documents || []);
+        const caseStatus = statusInfo.status;
+        const nextStep = mapVisaCaseStatusToNextStep(statusInfo);
+        const normalizedDocuments = (visaCaseDoc.documents || []).map((doc) => mapDocumentForResponse(doc.toObject ? doc.toObject() : doc));
         return res.status(201).json({
             message: "Document uploaded successfully",
-            visaCase: visaCaseDoc.toObject(),
+            visaCase: {
+                ...visaCaseDoc.toObject(),
+                documents: normalizedDocuments,
+                status: caseStatus,
+                nextStep,
+            },
         });
     } catch (error) {
         return next(error);

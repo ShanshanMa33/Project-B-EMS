@@ -8,6 +8,8 @@ const employeeProfileRoutes = require('./routes/employeeProfile');
 const onboardingApplicationRoutes = require('./routes/onboardingApplication');
 const hrRoutes = require('./routes/hrRoutes');
 const visaCaseRoutes = require('./routes/visaCase');
+const { authenticateToken } = require('./middleware/auth');
+const { me } = require('./controllers/auth');
 
 const app = express();
 
@@ -23,6 +25,7 @@ app.use('/api/employee', employeeProfileRoutes);
 app.use('/api/onboarding', onboardingApplicationRoutes);
 app.use('/api/hr', hrRoutes);
 app.use('/api/visa', visaCaseRoutes);
+app.get('/api/users/me', authenticateToken, me);
 // Health check endpoint
 app.get('/api/health', (req, res) => {
     res.json({ status: 'OK', message: 'API is running' });

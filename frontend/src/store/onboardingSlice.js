@@ -1,59 +1,81 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
-import { api } from "../api/client";
-import { logout, signIn } from "./authSlice";
+import {
+    createMyOnboarding,
+    getMyOnboarding,
+    submitMyOnboarding,
+    updateMyOnboarding,
+} from "../api/onboardingApi";
+
+const getApiErrorMessage = (error, fallback) =>
+    error?.response?.data?.message
+    || error?.response?.data?.error
+    || error?.message
+    || fallback;
 
 export const fetchOnboarding = createAsyncThunk("onboarding/fetch", async (_, thunkAPI) => {
     try {
-        const res = await api.get("/api/onboarding");
+        const res = await getMyOnboarding();
         return res.data;
     } catch (e) {
-        return thunkAPI.rejectWithValue(e.response?.data?.message || "Failed to load onboarding");
+        return thunkAPI.rejectWithValue(getApiErrorMessage(e, "Failed to load onboarding"));
     }
 });
 
 export const createOnboarding = createAsyncThunk("onboarding/create", async (_, thunkAPI) => {
     try {
-        const res = await api.post("/api/onboarding", {});
+        const res = await createMyOnboarding();
         return res.data;
     } catch (e) {
-        return thunkAPI.rejectWithValue(e.response?.data?.message || "Failed to create onboarding");
+        return thunkAPI.rejectWithValue(getApiErrorMessage(e, "Failed to create onboarding"));
     }
 });
 
 export const saveOnboarding = createAsyncThunk("onboarding/save", async (payload, thunkAPI) => {
     try {
-        const res = await api.put("/api/onboarding", payload);
+        const res = await updateMyOnboarding(payload);
         return res.data;
     } catch (e) {
-        return thunkAPI.rejectWithValue(e.response?.data?.message || "Failed to save onboarding");
+        return thunkAPI.rejectWithValue(getApiErrorMessage(e, "Failed to save onboarding"));
     }
 });
 
-export const submitOnboarding = createAsyncThunk("onboarding/submit", async (action = "submit", thunkAPI) => {
+export const submitOnboarding = createAsyncThunk("onboarding/submit", async (_, thunkAPI) => {
     try {
-        const res = await api.put("/api/onboarding", { action });
+        const res = await submitMyOnboarding();
         return res.data;
     } catch (e) {
-        return thunkAPI.rejectWithValue(e.response?.data?.message || "Failed to submit onboarding");
+        return thunkAPI.rejectWithValue(getApiErrorMessage(e, "Failed to submit onboarding"));
     }
 });
 
 const slice = createSlice({
     name: "onboarding",
-    initialState: { application: null, loading: false, error: null, initialized: false },
-    reducers: {},
+    initialState: {
+        application: null,
+        loading: false,
+        error: null,
+        initialized: false,
+        draft: null,
+        draftDirty: false,
+    },
+    reducers: {
+        setOnboardingDraft(state, action) {
+            state.draft = action.payload;
+            state.draftDirty = true;
+        },
+        clearOnboardingDraft(state) {
+            state.draft = null;
+            state.draftDirty = false;
+        },
+    },
     extraReducers: (b) => {
-        b.addCase(signIn.fulfilled, (s) => {
-            s.application = null;
-            s.loading = false;
-            s.error = null;
-            s.initialized = false;
+        b.addCase(saveOnboarding.fulfilled, (s) => {
+            s.draft = null;
+            s.draftDirty = false;
         });
-        b.addCase(logout, (s) => {
-            s.application = null;
-            s.loading = false;
-            s.error = null;
-            s.initialized = false;
+        b.addCase(submitOnboarding.fulfilled, (s) => {
+            s.draft = null;
+            s.draftDirty = false;
         });
         b.addMatcher((a) => a.type.startsWith("onboarding/") && a.type.endsWith("/pending"), (s) => {
             s.loading = true;
@@ -72,4 +94,5 @@ const slice = createSlice({
     },
 });
 
+export const { setOnboardingDraft, clearOnboardingDraft } = slice.actions;
 export default slice.reducer;

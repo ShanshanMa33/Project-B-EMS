@@ -1,14 +1,23 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Alert, Box, Card, CardContent, Typography, Divider, Grid, Stack } from "@mui/material";
 import { Button, Form, Input, DatePicker, Select, Upload, Space, message } from "antd";
 import { UploadOutlined, DownloadOutlined, EyeOutlined, PlusOutlined, MinusCircleOutlined, DeleteOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import PageHeader from "../../components/PageHeader";
-import { api } from "../../api/client";
-import { fetchOnboarding, createOnboarding, saveOnboarding, submitOnboarding } from "../../store/onboardingSlice";
-
-const API_BASE = "/api/onboarding";
+import {
+    deleteOnboardingDocument,
+    downloadOnboardingDocument,
+    previewOnboardingDocument,
+    uploadOnboardingDocument,
+} from "../../api/onboardingApi";
+import {
+    fetchOnboarding,
+    createOnboarding,
+    saveOnboarding,
+    submitOnboarding,
+    setOnboardingDraft,
+} from "../../store/onboardingSlice";
 
 const STATUS = {
     IN_PROGRESS: "in_progress",
@@ -41,11 +50,11 @@ function toFormValues(application) {
         preferredName: application.preferredName || "",
 
         address: {
-            AddressLine1: application.address?.AddressLine1 || "",
-            AddressLine2: application.address?.AddressLine2 || "",
-            City: application.address?.City || "",
-            State: application.address?.State || "",
-            ZipCode: application.address?.ZipCode || "",
+            apt: application.address?.AddressLine2 || application.address?.apt || "",
+            street: application.address?.AddressLine1 || application.address?.street || "",
+            city: application.address?.City || application.address?.city || "",
+            state: application.address?.State || application.address?.state || "",
+            zip: application.address?.ZipCode || application.address?.zip || "",
             Country: application.address?.Country || "",
         },
 
@@ -76,23 +85,44 @@ function toFormValues(application) {
             relationship: application.reference?.relationship || "",
         },
 
-        emergencyContact:
-            application.emergencyContact?.length > 0
-                ? application.emergencyContact.map((c) => ({
+        emergencyContact: (() => {
+            if (Array.isArray(application.emergencyContact) && application.emergencyContact.length > 0) {
+                return application.emergencyContact.map((c) => ({
                     firstName: c.firstName || "",
                     lastName: c.lastName || "",
                     middleName: c.middleName || "",
                     email: c.email || "",
                     phone: c.phone || "",
                     relationship: c.relationship || "",
-                }))
-                : [{ firstName: "", lastName: "", middleName: "", phone: "", relationship: "" }],
+                }));
+            }
+            if (application.emergencyContact && typeof application.emergencyContact === "object") {
+                return [{
+                    firstName: application.emergencyContact.firstName || "",
+                    lastName: application.emergencyContact.lastName || "",
+                    middleName: application.emergencyContact.middleName || "",
+                    email: application.emergencyContact.email || "",
+                    phone: application.emergencyContact.phone || "",
+                    relationship: application.emergencyContact.relationship || "",
+                }];
+            }
+            return [{ firstName: "", lastName: "", middleName: "", phone: "", relationship: "" }];
+        })(),
     };
 }
 
 function toPayload(values) {
+    const address = values?.address || {};
     return {
         ...values,
+        address: {
+            AddressLine1: address.street || address.AddressLine1 || "",
+            AddressLine2: address.apt || address.AddressLine2 || "",
+            City: address.city || address.City || "",
+            State: address.state || address.State || "",
+            ZipCode: address.zip || address.ZipCode || "",
+            Country: address.Country || "",
+        },
         dob: values.dob ? values.dob.toISOString() : null,
         workAuth: {
             ...values.workAuth,
@@ -102,14 +132,45 @@ function toPayload(values) {
     };
 }
 
+function toDraftPayload(values) {
+    const address = values?.address || {};
+    return {
+        ...values,
+        address: {
+            apt: address.apt || address.AddressLine2 || "",
+            street: address.street || address.AddressLine1 || "",
+            city: address.city || address.City || "",
+            state: address.state || address.State || "",
+            zip: address.zip || address.ZipCode || "",
+            Country: address.Country || "",
+        },
+        dob: values?.dob ? values.dob.toISOString() : null,
+        workAuth: {
+            ...values?.workAuth,
+            startDate: values?.workAuth?.startDate ? values.workAuth.startDate.toISOString() : null,
+            endDate: values?.workAuth?.endDate ? values.workAuth.endDate.toISOString() : null,
+        },
+    };
+}
+
+function draftToFormValues(draft) {
+    if (!draft) return null;
+    return {
+        ...draft,
+        dob: draft?.dob ? dayjs(draft.dob) : null,
+        workAuth: {
+            ...draft?.workAuth,
+            startDate: draft?.workAuth?.startDate ? dayjs(draft.workAuth.startDate) : null,
+            endDate: draft?.workAuth?.endDate ? dayjs(draft.workAuth.endDate) : null,
+        },
+    };
+}
+
 // works with Bearer token
 async function openOrDownloadDoc({ docId, mode, fileName }) {
-    const endpoint =
-        mode === "preview"
-            ? `${API_BASE}/documents/${docId}/preview`
-            : `${API_BASE}/documents/${docId}`;
-
-    const res = await api.get(endpoint, { responseType: "blob" });
+    const res = mode === "preview"
+        ? await previewOnboardingDocument(docId)
+        : await downloadOnboardingDocument(docId);
     const contentType = res?.headers?.["content-type"] || "application/pdf";
     const blob = res.data instanceof Blob ? res.data : new Blob([res.data], { type: contentType });
     const url = window.URL.createObjectURL(blob);
@@ -266,17 +327,10 @@ function UploadDocsSection({ disabled, onUploaded, ensureCreated }) {
         try {
             setUploading(true);
             await ensureCreated?.();
-
-            const formData = new FormData();
-            formData.append("docType", docType);
-            formData.append("file", fileObj);
-
-            const res = await api.post(`${API_BASE}/documents`, formData, {
-                headers: { "Content-Type": "multipart/form-data" },
-            });
+            await uploadOnboardingDocument({ docType, file: fileObj });
             message.success("Document uploaded");
             setFileList([]);
-            await onUploaded?.(res?.data?.uploadedDocs);
+            await onUploaded?.();
         } catch (e) {
             message.error(e?.response?.data?.message || "Upload failed");
         } finally {
@@ -333,17 +387,13 @@ function UploadDocsSection({ disabled, onUploaded, ensureCreated }) {
 // Employee onboarding application page
 export default function EmployeeOnboarding() {
     const dispatch = useDispatch();
-    const { application, loading, error, initialized } = useSelector((s) => s.onboarding);
+    const { application, loading, error, draft, draftDirty } = useSelector((s) => s.onboarding);
     const [form] = Form.useForm();
-    const hydratedRef = useRef(false);
-    const [uploadedDocs, setUploadedDocs] = useState([]);
 
     // Load onboarding
     useEffect(() => {
-        if (!initialized && !loading) {
-            dispatch(fetchOnboarding());
-        }
-    }, [dispatch, initialized, loading]);
+        dispatch(fetchOnboarding());
+    }, [dispatch]);
 
     // Determine mode
     const status = application?.status || null;
@@ -369,19 +419,19 @@ export default function EmployeeOnboarding() {
 
     // Initialize form values
     useEffect(() => {
-        if (!application) return;
-        if (hydratedRef.current) return;
-        if (form.isFieldsTouched(true)) {
-            hydratedRef.current = true;
+        if (readOnly && application) {
+            form.setFieldsValue(toFormValues(application));
             return;
         }
-        form.setFieldsValue(toFormValues(application));
-        hydratedRef.current = true;
-    }, [application, form]);
-
-    useEffect(() => {
-        setUploadedDocs(Array.isArray(application?.uploadedDocs) ? application.uploadedDocs : []);
-    }, [application?.uploadedDocs]);
+        if (form.isFieldsTouched(true)) return;
+        if (draftDirty && draft) {
+            form.setFieldsValue(draftToFormValues(draft));
+            return;
+        }
+        if (application) {
+            form.setFieldsValue(toFormValues(application));
+        }
+    }, [application, draft, draftDirty, form, readOnly]);
 
     // Ensure onboarding exists when user first visits (Mode A with null app)
     const ensureCreated = async () => {
@@ -391,82 +441,35 @@ export default function EmployeeOnboarding() {
     };
 
     const onSave = async () => {
-        if (application?.status === STATUS.PENDING || application?.status === STATUS.APPROVED) {
-            message.warning("This application is not editable while pending HR review.");
-            return;
-        }
-
         try {
             await ensureCreated();
             const values = await form.validateFields();
-            await dispatch(saveOnboarding(toPayload(values)));
-            await dispatch(fetchOnboarding());
-        } catch (err) {
-            if (err?.errorFields) return; // validation errors already shown by antd
-            message.error(err?.message || "Failed to save onboarding");
+            await dispatch(saveOnboarding(toPayload(values))).unwrap();
+            const latest = await dispatch(fetchOnboarding()).unwrap();
+            if (latest) form.setFieldsValue(toFormValues(latest));
+            message.success("Saved");
+        } catch (e) {
+            message.error(typeof e === "string" ? e : "Failed to save");
         }
     };
 
     const onSubmit = async () => {
-        if (application?.status === STATUS.PENDING || application?.status === STATUS.APPROVED) {
-            message.warning("This application is already submitted and pending HR review.");
-            return;
-        }
-
         try {
             await ensureCreated();
-
-            // validate required fields for submission
             const values = await form.validateFields();
-            await dispatch(saveOnboarding(toPayload(values)));
-            const submitResult = await dispatch(submitOnboarding("submit"));
-
-            if (submitOnboarding.rejected.match(submitResult)) {
-                const reason = String(submitResult.payload || submitResult.error?.message || "");
-                if (reason.toLowerCase().includes("invalid state")) {
-                    message.info("Your application is already pending HR review.");
-                    await dispatch(fetchOnboarding());
-                    return;
-                }
-                message.error(reason || "Failed to submit onboarding");
-                return;
-            }
-
-            await dispatch(fetchOnboarding());
-        } catch (err) {
-            if (err?.errorFields) return;
-            message.error(err?.message || "Failed to submit onboarding");
+            await dispatch(saveOnboarding(toPayload(values))).unwrap();
+            await dispatch(submitOnboarding()).unwrap();
+            const latest = await dispatch(fetchOnboarding()).unwrap();
+            if (latest) form.setFieldsValue(toFormValues(latest));
+            message.success("Submitted");
+        } catch (e) {
+            message.error(typeof e === "string" ? e : "Failed to submit");
         }
     };
 
     const onResubmit = async () => {
-        if (application?.status === STATUS.PENDING || application?.status === STATUS.APPROVED) {
-            message.warning("This application is already submitted and pending HR review.");
-            return;
-        }
-
-        try {
-            await ensureCreated();
-            const values = await form.validateFields();
-            await dispatch(saveOnboarding(toPayload(values)));
-            const submitResult = await dispatch(submitOnboarding("resubmit"));
-
-            if (submitOnboarding.rejected.match(submitResult)) {
-                const reason = String(submitResult.payload || submitResult.error?.message || "");
-                if (reason.toLowerCase().includes("invalid state")) {
-                    message.info("Your application is already pending HR review.");
-                    await dispatch(fetchOnboarding());
-                    return;
-                }
-                message.error(reason || "Failed to resubmit onboarding");
-                return;
-            }
-
-            await dispatch(fetchOnboarding());
-        } catch (err) {
-            if (err?.errorFields) return;
-            message.error(err?.message || "Failed to resubmit onboarding");
-        }
+        // same as submit for now
+        await onSubmit();
     };
 
     const workAuthCitizenOrPR = Form.useWatch(["workAuth", "isCitizenOrPR"], form);
@@ -474,13 +477,12 @@ export default function EmployeeOnboarding() {
 
     const deleteDoc = async (docId) => {
         if (!docId) return;
-        try {
-            await api.delete(`${API_BASE}/documents/${docId}`);
-            setUploadedDocs((prev) => prev.filter((d) => d._id !== docId));
-            message.success("Document deleted");
-        } catch (err) {
-            message.error(err?.response?.data?.message || "Failed to delete document");
-        }
+        await deleteOnboardingDocument(docId);
+        dispatch(fetchOnboarding());
+    };
+
+    const onValuesChange = (_, allValues) => {
+        dispatch(setOnboardingDraft(toDraftPayload(allValues)));
     };
 
     return (
@@ -518,6 +520,7 @@ export default function EmployeeOnboarding() {
                                     layout="vertical"
                                     disabled={readOnly}
                                     initialValues={{ emergencyContact: [{ firstName: "", lastName: "", phone: "", relationship: "" }] }}
+                                    onValuesChange={onValuesChange}
                                 >
                                     <Divider sx={{ my: 2 }} />
                                     <Typography fontWeight={800} sx={{ mb: 1 }}>
@@ -836,7 +839,7 @@ export default function EmployeeOnboarding() {
                                     {/* Documents (inside onboarding card) */}
                                     <Stack spacing={2}>
                                         <UploadedDocsList
-                                            docs={uploadedDocs}
+                                            docs={application?.uploadedDocs || []}
                                             readonly={readOnly}
                                             onDelete={deleteDoc}
                                         />
@@ -844,11 +847,7 @@ export default function EmployeeOnboarding() {
                                         <UploadDocsSection
                                             disabled={readOnly}
                                             ensureCreated={ensureCreated}
-                                            onUploaded={(docs) => {
-                                                if (Array.isArray(docs)) {
-                                                    setUploadedDocs(docs);
-                                                }
-                                            }}
+                                            onUploaded={() => dispatch(fetchOnboarding())}
                                         />
                                     </Stack>
 

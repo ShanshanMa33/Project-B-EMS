@@ -1,8 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { fetchOnboarding } from "../store/onboardingSlice";
-import { fetchCurrentUser } from "../store/authSlice";
+import { fetchCurrentUser, logout } from "../store/authSlice";
 import {
     getRedirectRoute,
     isEmployeeOnboardingRoute,
@@ -12,7 +12,6 @@ import {
 export default function ProtectedRoute({ allowRoles }) {
     const location = useLocation();
     const dispatch = useDispatch();
-    const onboardingRefreshRef = useRef(false);
 
     const { token, user, loading: authLoading } = useSelector((state) => state.auth);
     const { loading, initialized, application } = useSelector((state) => state.onboarding);
@@ -30,15 +29,12 @@ export default function ProtectedRoute({ allowRoles }) {
     }, [dispatch, token, user, authLoading]);
 
     useEffect(() => {
-        if (!token) {
-            onboardingRefreshRef.current = false;
-            return;
-        }
-        if (!user || !isEmployee) return;
-        if (onboardingRefreshRef.current) return;
-        onboardingRefreshRef.current = true;
-        dispatch(fetchOnboarding());
-    }, [dispatch, token, user, isEmployee]);
+        const onAuthExpired = () => {
+            dispatch(logout());
+        };
+        window.addEventListener("auth:expired", onAuthExpired);
+        return () => window.removeEventListener("auth:expired", onAuthExpired);
+    }, [dispatch]);
 
     useEffect(() => {
         if (!token || !user || !isEmployee) return;
@@ -51,7 +47,7 @@ export default function ProtectedRoute({ allowRoles }) {
         return <Navigate to="/signin" replace state={{ from: location }} />;
     }
 
-    if (!user) {
+    if (authLoading || !user) {
         return <div>Loading...</div>;
     }
 

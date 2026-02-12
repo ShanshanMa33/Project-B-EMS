@@ -1,4 +1,4 @@
-import { api } from "../api/client";
+import { fetchFileBlob } from "../api/fileApi";
 
 /**
  * Fetch a secured file via axios (Bearer token attached),
@@ -9,7 +9,7 @@ export async function fetchAndHandleDoc({
     mode, // "preview" | "download"
     filename = "download",
 }) {
-    const res = await api.get(url, { responseType: "blob" });
+    const res = await fetchFileBlob(url);
 
     const blob = new Blob([res.data], {
         type: res.headers?.["content-type"] || "application/octet-stream",

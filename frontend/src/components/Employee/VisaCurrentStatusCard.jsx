@@ -1,29 +1,35 @@
-import React, { useMemo } from "react";
+import React from "react";
 import { Box, Card, CardContent, Chip, Typography } from "@mui/material";
 
-function pillColor(status) {
-    if (status === "completed" || status === "approved") return "success";
-    if (status === "rejected") return "error";
-    if (status === "pending" || status === "in_progress") return "warning";
-    return "default";
-}
-
 export default function VisaCurrentStatusCard({ stages = [], docMap = {} }) {
-    const { title, badgeText, badgeColor, etaText } = useMemo(() => {
-        for (const stage of stages) {
-            const doc = docMap[stage.docType];
-            if (!doc) {
-                return { title: `${stage.label} Upload`, badgeText: "Not Started", badgeColor: "default", etaText: "" };
-            }
-            if (doc.status === "rejected") {
-                return { title: `${stage.label} Needs Fix`, badgeText: "Rejected", badgeColor: "error", etaText: "Please fix and re-upload" };
-            }
-            if (doc.status === "pending") {
-                return { title: `${stage.label} Under Review`, badgeText: "Pending", badgeColor: "warning", etaText: "Estimated completion: 3 days" };
-            }
+    let title = "All Documents Uploaded";
+    let badgeText = "Completed";
+    let badgeColor = "success";
+    let etaText = "";
+
+    for (const stage of stages) {
+        const doc = docMap[stage.docType];
+        if (!doc) {
+            title = `${stage.label} Upload`;
+            badgeText = "Not Started";
+            badgeColor = "default";
+            break;
         }
-        return { title: "All Documents Uploaded", badgeText: "Completed", badgeColor: "success", etaText: "" };
-    }, [stages, docMap]);
+        if (doc.status === "rejected") {
+            title = `${stage.label} Needs Fix`;
+            badgeText = "Rejected";
+            badgeColor = "error";
+            etaText = "Please fix and re-upload";
+            break;
+        }
+        if (doc.status === "pending") {
+            title = `${stage.label} Under Review`;
+            badgeText = "Pending";
+            badgeColor = "warning";
+            etaText = "Estimated completion: 3 days";
+            break;
+        }
+    }
 
     return (
         <Card elevation={0} sx={{ borderRadius: 3, border: "1px solid #e2e8f0" }}>

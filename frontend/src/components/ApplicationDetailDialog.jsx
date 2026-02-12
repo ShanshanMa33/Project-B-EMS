@@ -12,7 +12,10 @@ import {
     Typography,
 } from '@mui/material';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
-import { api } from '../api/client';
+import {
+    previewHROnboardingDocument,
+    previewHRProfileDocument,
+} from '../api/hrApi';
 
 const display = (value) => {
     if (value === null || value === undefined) return 'N/A';
@@ -43,35 +46,21 @@ function LabelValue({ label, value }) {
 }
 
 export default function ApplicationDetailDialog({ open, loading, detail, onClose }) {
-    const app = detail?.app || {};
     const profile = detail?.profile || {};
+    const address = detail?.address || {};
+    const workAuthorization = detail?.workAuthorization || {};
+    const reference = detail?.reference || {};
     const docs = Array.isArray(detail?.documents) ? detail.documents : [];
     const emergencyContacts = Array.isArray(detail?.emergencyContacts) ? detail.emergencyContacts : [];
 
-    const fullName = `${app?.firstName || ''} ${app?.lastName || ''}`.trim()
-        || `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim()
-        || app?.preferredName
-        || profile?.preferredName
-        || 'N/A';
-
-    const userId = String(
-        app?.employee?._id
-        || app?.employee
-        || app?.User?._id
-        || app?.User
-        || profile?.user?._id
-        || profile?.user
-        || ''
-    );
+    const fullName = detail?.fullName || 'N/A';
+    const userId = String(detail?.userId || '');
 
     const previewDoc = async (doc) => {
         if (!userId || !doc) return;
-        const endpoint = doc.source === 'onboarding'
-            ? `/api/hr/onboarding-documents/${userId}/${doc.docId}/preview`
-            : `/api/hr/documents/${userId}/${doc.key}/preview`;
-        const res = await api.get(endpoint, {
-            responseType: 'blob',
-        });
+        const res = doc.source === 'onboarding'
+            ? await previewHROnboardingDocument(userId, doc.docId)
+            : await previewHRProfileDocument(userId, doc.key);
         const contentType = res?.headers?.['content-type'] || 'application/octet-stream';
         const blob = res.data instanceof Blob ? res.data : new Blob([res.data], { type: contentType });
         const url = window.URL.createObjectURL(blob);
@@ -97,13 +86,13 @@ export default function ApplicationDetailDialog({ open, loading, detail, onClose
                                     <LabelValue label="Full Name" value={fullName} />
                                 </Grid>
                                 <Grid item xs={12} md={6}>
-                                    <LabelValue label="Email" value={app?.email || profile?.email || app?.User?.email} />
+                                    <LabelValue label="Email" value={detail?.email} />
                                 </Grid>
                                 <Grid item xs={12} md={6}>
-                                    <LabelValue label="Status" value={app?.status} />
+                                    <LabelValue label="Status" value={detail?.onboardingStatus} />
                                 </Grid>
                                 <Grid item xs={12} md={6}>
-                                    <LabelValue label="Preferred Name" value={app?.preferredName || profile?.preferredName} />
+                                    <LabelValue label="Preferred Name" value={profile?.preferredName} />
                                 </Grid>
                             </Grid>
                         </DetailSection>
@@ -111,19 +100,19 @@ export default function ApplicationDetailDialog({ open, loading, detail, onClose
                         <DetailSection title="Address">
                             <Grid container spacing={2}>
                                 <Grid item xs={12} md={6}>
-                                    <LabelValue label="Line 1" value={app?.address?.AddressLine1 || profile?.address?.line1} />
+                                    <LabelValue label="Line 1" value={address?.line1} />
                                 </Grid>
                                 <Grid item xs={12} md={6}>
-                                    <LabelValue label="Line 2" value={app?.address?.AddressLine2 || profile?.address?.line2} />
+                                    <LabelValue label="Line 2" value={address?.line2} />
                                 </Grid>
                                 <Grid item xs={12} md={4}>
-                                    <LabelValue label="City" value={app?.address?.City || profile?.address?.city} />
+                                    <LabelValue label="City" value={address?.city} />
                                 </Grid>
                                 <Grid item xs={12} md={4}>
-                                    <LabelValue label="State" value={app?.address?.State || profile?.address?.state} />
+                                    <LabelValue label="State" value={address?.state} />
                                 </Grid>
                                 <Grid item xs={12} md={4}>
-                                    <LabelValue label="ZIP" value={app?.address?.ZipCode || profile?.address?.zipCode} />
+                                    <LabelValue label="ZIP" value={address?.zip} />
                                 </Grid>
                             </Grid>
                         </DetailSection>
@@ -131,10 +120,27 @@ export default function ApplicationDetailDialog({ open, loading, detail, onClose
                         <DetailSection title="Work Authorization">
                             <Grid container spacing={2}>
                                 <Grid item xs={12} md={6}>
-                                    <LabelValue label="Citizen / PR" value={app?.workAuth?.isCitizenOrPR} />
+                                    <LabelValue
+                                        label="Citizen / PR"
+                                        value={
+                                            workAuthorization?.isCitizenOrPR === true
+                                                ? "Yes"
+                                                : workAuthorization?.isCitizenOrPR === false
+                                                    ? "No"
+                                                    : null
+                                        }
+                                    />
                                 </Grid>
                                 <Grid item xs={12} md={6}>
-                                    <LabelValue label="Type" value={app?.workAuth?.visaType || profile?.workAuthorization?.type} />
+                                    <LabelValue
+                                        label="Type"
+                                        value={
+                                            workAuthorization?.displayTitle
+                                            || workAuthorization?.citizenOrGreenCard
+                                            || workAuthorization?.otherVisaTitle
+                                            || workAuthorization?.type
+                                        }
+                                    />
                                 </Grid>
                             </Grid>
                         </DetailSection>
@@ -142,19 +148,19 @@ export default function ApplicationDetailDialog({ open, loading, detail, onClose
                         <DetailSection title="Reference">
                             <Grid container spacing={2}>
                                 <Grid item xs={12} md={4}>
-                                    <LabelValue label="First Name" value={app?.reference?.firstName} />
+                                    <LabelValue label="First Name" value={reference?.firstName} />
                                 </Grid>
                                 <Grid item xs={12} md={4}>
-                                    <LabelValue label="Last Name" value={app?.reference?.lastName} />
+                                    <LabelValue label="Last Name" value={reference?.lastName} />
                                 </Grid>
                                 <Grid item xs={12} md={4}>
-                                    <LabelValue label="Relationship" value={app?.reference?.relationship} />
+                                    <LabelValue label="Relationship" value={reference?.relationship} />
                                 </Grid>
                                 <Grid item xs={12} md={6}>
-                                    <LabelValue label="Phone" value={app?.reference?.phone} />
+                                    <LabelValue label="Phone" value={reference?.phone} />
                                 </Grid>
                                 <Grid item xs={12} md={6}>
-                                    <LabelValue label="Email" value={app?.reference?.email} />
+                                    <LabelValue label="Email" value={reference?.email} />
                                 </Grid>
                             </Grid>
                         </DetailSection>

@@ -6,39 +6,14 @@ import { Avatar, Box, Button, CircularProgress, Paper, Typography } from "@mui/m
 import Layout from "../../components/Layout";
 import PageHeader from "../../components/PageHeader";
 import { DetailRow, DetailSection } from "../../components/DetailSection";
-import { getHRDocumentDownloadUrl, getHRDocumentPreviewUrl } from "../../api/hr";
-import { formatDate, getVisaTitle } from "../../utils/profileFormatters";
+import {
+    getHRDocumentDownloadUrl,
+    getHRDocumentPreviewUrl,
+    getHROnboardingDocumentDownloadUrl,
+    getHROnboardingDocumentPreviewUrl,
+} from "../../api/hr";
+import { formatDate } from "../../utils/profileFormatters";
 import { clearApplicationDetail, fetchHRApplicationDetail } from "../../store/hrSlice";
-
-const PROFILE_FIELDS = [
-    { label: "First Name", value: (profile) => profile.firstName },
-    { label: "Last Name", value: (profile) => profile.lastName },
-    { label: "Middle Name", value: (profile) => profile.middleName },
-    { label: "Preferred Name", value: (profile) => profile.preferredName },
-    { label: "SSN", value: (profile) => profile.ssn },
-    { label: "Date Of Birth", value: (profile) => formatDate(profile.dateOfBirth) },
-    { label: "Gender", value: (profile) => profile.gender },
-];
-
-const ADDRESS_FIELDS = [
-    { label: "Building/Apt", value: (profile) => profile.address?.buildingApt },
-    { label: "Street", value: (profile) => profile.address?.street || profile.address?.line1 },
-    { label: "City", value: (profile) => profile.address?.city },
-    { label: "State", value: (profile) => profile.address?.state },
-    { label: "Zip", value: (profile) => profile.address?.zipCode || profile.address?.zip },
-];
-
-const CONTACT_FIELDS = [
-    { label: "Cell Phone", value: (profile) => profile.phones?.cell },
-    { label: "Work Phone", value: (profile) => profile.phones?.work },
-];
-
-const EMPLOYMENT_FIELDS = [
-    { label: "Job Title", value: (profile, detail) => profile.position || detail?.app?.positionTitle },
-    { label: "Visa Title", value: (profile) => getVisaTitle(profile) },
-    { label: "Start Date", value: (profile) => formatDate(profile.workAuthorization?.startDate) },
-    { label: "End Date", value: (profile) => formatDate(profile.workAuthorization?.endDate) },
-];
 
 export default function EmployeeProfileDetail() {
     const { userId } = useParams();
@@ -46,7 +21,6 @@ export default function EmployeeProfileDetail() {
     const dispatch = useDispatch();
     const loading = useSelector((state) => state.hr.applicationDetailLoading);
     const detail = useSelector((state) => state.hr.applicationDetail);
-    const profile = detail?.profile || null;
     const emergencyList = detail?.emergencyContacts || [];
     const docs = detail?.documents || [];
     const openExternal = (url) => window.open(url, "_blank", "noopener,noreferrer");
@@ -70,49 +44,55 @@ export default function EmployeeProfileDetail() {
                 </Button>
             </Box>
 
-            <Paper elevation={0} sx={{ p: 3, borderRadius: "20px", boxShadow: "0 4px 20px rgba(0,0,0,0.02)", mb:10 }}>
+            <Paper elevation={0} sx={{ p: 3, borderRadius: "20px", boxShadow: "0 4px 20px rgba(0,0,0,0.02)", mb: 10 }}>
                 {loading ? (
                     <Box sx={{ py: 6, display: "flex", justifyContent: "center" }}>
                         <CircularProgress />
                     </Box>
-                ) : !profile ? (
+                ) : !detail ? (
                     <Typography color="error">Profile not found.</Typography>
                 ) : (
                     <Box sx={{ display: "grid", gap: 2 }}>
                         <DetailSection title="Name & Identity">
                             <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 1 }}>
                                 <Avatar
-                                    src={profile.profilePictureUrl || ""}
+                                    src={detail?.profile?.profilePicture || ""}
                                     sx={{ width: 64, height: 64, bgcolor: "#e2e8f0", color: "#334155", fontWeight: 700 }}
                                 >
-                                    {(profile.preferredName || profile.firstName || "U").slice(0, 1).toUpperCase()}
+                                    {(detail?.profile?.preferredName || detail?.profile?.firstName || detail?.fullName || "U").slice(0, 1).toUpperCase()}
                                 </Avatar>
                                 <Box>
-                                    <DetailRow label="Email" value={profile.email || detail?.app?.User?.email} />
-                                    <DetailRow label="Profile Picture" value={profile.profilePictureUrl || profile.documents?.profilePicture || "Not uploaded"} />
+                                    <DetailRow label="Email" value={detail?.email} />
+                                    <DetailRow label="Profile Picture" value={detail?.profile?.profilePicture || "Not uploaded"} />
                                 </Box>
                             </Box>
-                            {PROFILE_FIELDS.map((field) => (
-                                <DetailRow key={field.label} label={field.label} value={field.value(profile)} />
-                            ))}
+                            <DetailRow label="First Name" value={detail?.profile?.firstName} />
+                            <DetailRow label="Last Name" value={detail?.profile?.lastName} />
+                            <DetailRow label="Middle Name" value={detail?.profile?.middleName} />
+                            <DetailRow label="Preferred Name" value={detail?.profile?.preferredName} />
+                            <DetailRow label="SSN" value={detail?.profile?.ssn} />
+                            <DetailRow label="Date Of Birth" value={formatDate(detail?.profile?.dob)} />
+                            <DetailRow label="Gender" value={detail?.profile?.gender} />
                         </DetailSection>
 
                         <DetailSection title="Address">
-                            {ADDRESS_FIELDS.map((field) => (
-                                <DetailRow key={field.label} label={field.label} value={field.value(profile)} />
-                            ))}
+                            <DetailRow label="Building/Apt" value={detail?.address?.line2} />
+                            <DetailRow label="Street" value={detail?.address?.line1} />
+                            <DetailRow label="City" value={detail?.address?.city} />
+                            <DetailRow label="State" value={detail?.address?.state} />
+                            <DetailRow label="Zip" value={detail?.address?.zip} />
                         </DetailSection>
 
                         <DetailSection title="Contact Info">
-                            {CONTACT_FIELDS.map((field) => (
-                                <DetailRow key={field.label} label={field.label} value={field.value(profile)} />
-                            ))}
+                            <DetailRow label="Cell Phone" value={detail?.contact?.cellPhone} />
+                            <DetailRow label="Work Phone" value={detail?.contact?.workPhone} />
                         </DetailSection>
 
                         <DetailSection title="Employment">
-                            {EMPLOYMENT_FIELDS.map((field) => (
-                                <DetailRow key={field.label} label={field.label} value={field.value(profile, detail)} />
-                            ))}
+                            <DetailRow label="Job Title" value={detail?.employment?.jobTitle || "-"} />
+                            <DetailRow label="Visa Title" value={detail?.employment?.visaTitle || "N/A"} />
+                            <DetailRow label="Start Date" value={formatDate(detail?.employment?.startDate)} />
+                            <DetailRow label="End Date" value={formatDate(detail?.employment?.endDate)} />
                         </DetailSection>
 
                         <DetailSection title="Emergency Contacts">
@@ -135,8 +115,12 @@ export default function EmployeeProfileDetail() {
                         <DetailSection title="Documents">
                             {docs.map((doc) => {
                                 const hasFile = Boolean(doc.fileName);
-                                const previewUrl = getHRDocumentPreviewUrl(userId, doc.key);
-                                const downloadUrl = getHRDocumentDownloadUrl(userId, doc.key);
+                                const previewUrl = doc.source === "onboarding"
+                                    ? getHROnboardingDocumentPreviewUrl(userId, doc.docId)
+                                    : getHRDocumentPreviewUrl(userId, doc.key);
+                                const downloadUrl = doc.source === "onboarding"
+                                    ? getHROnboardingDocumentDownloadUrl(userId, doc.docId)
+                                    : getHRDocumentDownloadUrl(userId, doc.key);
                                 return (
                                     <Box
                                         key={doc.key}

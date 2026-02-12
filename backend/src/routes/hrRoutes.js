@@ -10,15 +10,18 @@ router.use(authenticateToken, requireHr);
 // 1. Hiring
 router.post('/invitation', hrController.sendInvitation);
 router.get('/invitation-history', hrController.getInvitationHistory);
+router.get('/token-history', hrController.getInvitationHistory);
 
 // 2. Onboarding Review
 router.get('/onboarding/pending', hrController.getPendingApplication);
 router.get('/onboarding/all', hrController.getAllApplications);
+router.get('/onboarding/list', hrController.getAllApplications);
 router.get('/onboarding/:userId', hrController.getApplicationDetail);
 router.put('/onboarding/review', hrController.reviewApplication);
 
 // 3. Employee Profiles
 router.get('/profiles', hrController.getAllEmployees);
+router.get('/profiles/:userId', hrController.getEmployeeInfo);
 router.get('/documents/:userId/:docKey/preview', hrController.previewEmployeeDocument);
 router.get('/documents/:userId/:docKey/download', hrController.downloadEmployeeDocument);
 router.get('/onboarding-documents/:userId/:docId/preview', hrController.previewOnboardingApplicationDocument);
@@ -28,6 +31,7 @@ router.get('/visa-documents/:userId/:docId/download', hrController.downloadVisaC
 
 // 4. Visa Management
 router.get('/visa/all', hrController.getAllVisaStatus);
+router.get('/visa/distribution', hrController.getVisaDistribution);
 router.put('/visa/review', hrController.reviewVisaFile);
 router.post('/visa/notify', hrController.sendVisaNotification);
 

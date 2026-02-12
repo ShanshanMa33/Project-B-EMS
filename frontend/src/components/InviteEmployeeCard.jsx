@@ -4,22 +4,26 @@ import {
     TableCell, TableContainer, TableHead, TableRow, CircularProgress,
 } from '@mui/material';
 import EmailIcon from '@mui/icons-material/Email';
-import { getHRInvitationHistory, sendHRInvitation } from '../api/hr';
+import { getHRTokenHistory, sendHRInvitation } from '../api/hr';
 
 const InviteEmployeeCard = () => {
     const [name, setName] = useState('');
+    const [position, setPosition] = useState('');
     const [email, setEmail] = useState('');
     const [loading, setLoading] = useState(false);
     const [historyLoading, setHistoryLoading] = useState(false);
     const [history, setHistory] = useState([]);
+    const [error, setError] = useState('');
 
     const loadHistory = async () => {
         setHistoryLoading(true);
+        setError('');
         try {
-            const res = await getHRInvitationHistory();
+            const res = await getHRTokenHistory();
             setHistory(Array.isArray(res.data) ? res.data : []);
-        } catch (_) {
+        } catch (err) {
             setHistory([]);
+            setError(err?.response?.data?.message || 'Failed to load token history');
         } finally {
             setHistoryLoading(false);
         }
@@ -31,15 +35,17 @@ const InviteEmployeeCard = () => {
 
     const handleSend = async () => {
         if (!email) return alert("Please enter email");
+        if (!position.trim()) return alert("Please enter position");
         setLoading(true);
+        setError('');
         try {
-            await sendHRInvitation({ name, email });
-            alert('Invitation sent!');
+            await sendHRInvitation({ name, position, email });
             setName('');
+            setPosition('');
             setEmail('');
             await loadHistory();
         } catch (err) {
-            alert('Failed: ' + (err.response?.data?.message || 'Error'));
+            setError(err?.response?.data?.message || 'Failed to send invitation');
         } finally {
             setLoading(false);
         }
@@ -58,28 +64,43 @@ const InviteEmployeeCard = () => {
                         Generate a 3-hour token. The employee will receive an email to onboard.
                     </Typography>
 
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: '16px', p: '8px', mb: 1 }}>
-                        <TextField
-                            placeholder="Employee name"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            variant="standard"
-                            slotProps={{ input: { disableUnderline: true, sx: { color: 'white', px: 2 } } }}
-                            sx={{ width: 220, flexShrink: 0 }}
-                        />
-                        <TextField
-                            fullWidth placeholder="name@company.com"
-                            value={email} onChange={(e) => setEmail(e.target.value)}
-                            variant="standard"
-                            slotProps={{ input: { disableUnderline: true, sx: { color: 'white', px: 2 } } }}
-                            sx={{ flex: 1, minWidth: 0 }}
-                        />
-                        <Button
-                            variant="contained" disabled={loading} onClick={handleSend}
-                            sx={{ bgcolor: 'white', color: '#30307c', borderRadius: '12px', fontWeight: 700, px: 3, whiteSpace: 'nowrap', flexShrink: 0 }}
-                        >
-                            {loading ? 'Sending...' : 'Send Invite'}
-                        </Button>
+                    <Box sx={{ bgcolor: 'rgba(255,255,255,0.1)', borderRadius: '16px', p: '10px', mb: 1 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, flexWrap: 'wrap' }}>
+                            <TextField
+                                placeholder="Employee name"
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                variant="standard"
+                                slotProps={{ input: { disableUnderline: true, sx: { color: 'white', px: 2 } } }}
+                                sx={{ width: 220, flexShrink: 0 }}
+                            />
+                            <TextField
+                                placeholder="Position"
+                                value={position}
+                                onChange={(e) => setPosition(e.target.value)}
+                                variant="standard"
+                                slotProps={{ input: { disableUnderline: true, sx: { color: 'white', px: 2 } } }}
+                                sx={{ width: 220, flexShrink: 0 }}
+                            />
+                        </Box>
+
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <TextField
+                                fullWidth
+                                placeholder="name@company.com"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                variant="standard"
+                                slotProps={{ input: { disableUnderline: true, sx: { color: 'white', px: 2 } } }}
+                                sx={{ flex: 1, minWidth: 0 }}
+                            />
+                            <Button
+                                variant="contained" disabled={loading} onClick={handleSend}
+                                sx={{ bgcolor: 'white', color: '#30307c', borderRadius: '12px', fontWeight: 700, px: 3, whiteSpace: 'nowrap', flexShrink: 0 }}
+                            >
+                                {loading ? 'Sending...' : 'Send Invite'}
+                            </Button>
+                        </Box>
                     </Box>
                 </Box>
                 <EmailIcon sx={{ fontSize: 80, opacity: 0.2, mr: 4 }} />
@@ -97,12 +118,17 @@ const InviteEmployeeCard = () => {
             <Typography variant="h6" sx={{ fontWeight: 800, color: '#1e293b', mb: 2 }}>
                 Registration Token History
             </Typography>
+            {error ? (
+                <Typography sx={{ color: '#dc2626', mb: 2 }}>
+                    {error}
+                </Typography>
+            ) : null}
 
             <TableContainer>
                 <Table size="small">
                     <TableHead>
                         <TableRow>
-                            {['Name', 'Email', 'Registration Link', 'Status', 'Created Time'].map((h) => (
+                            {['Name', 'Position', 'Email', 'Registration Link', 'Status', 'Created Time'].map((h) => (
                                 <TableCell key={h} sx={{ fontWeight: 700, color: '#64748b' }}>
                                     {h}
                                 </TableCell>
@@ -112,13 +138,13 @@ const InviteEmployeeCard = () => {
                     <TableBody>
                         {historyLoading ? (
                             <TableRow>
-                                <TableCell colSpan={5} align="center" sx={{ py: 3 }}>
+                                <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
                                     <CircularProgress size={22} />
                                 </TableCell>
                             </TableRow>
                         ) : history.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={5} align="center" sx={{ py: 3, color: '#64748b' }}>
+                                <TableCell colSpan={6} align="center" sx={{ py: 3, color: '#64748b' }}>
                                     No token history
                                 </TableCell>
                             </TableRow>
@@ -126,6 +152,7 @@ const InviteEmployeeCard = () => {
                             history.map((item) => (
                                 <TableRow key={item._id}>
                                     <TableCell>{item.name || '-'}</TableCell>
+                                    <TableCell>{item.position || '-'}</TableCell>
                                     <TableCell>{item.email || '-'}</TableCell>
                                     <TableCell>
                                         {item.registrationLink ? (

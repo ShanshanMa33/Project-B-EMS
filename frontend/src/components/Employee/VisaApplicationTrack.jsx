@@ -45,7 +45,7 @@ export default function VisaApplicationTrack({ stages = [], docsMap = {}, onView
                 </Typography>
 
                 <Box sx={{ display: "grid", gap: 1.5 }}>
-                    {items.map((it, idx) => (
+                    {items.map((it) => (
                         <Box
                             key={it.key}
                             sx={{

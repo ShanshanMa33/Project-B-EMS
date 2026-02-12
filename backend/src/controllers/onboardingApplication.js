@@ -32,6 +32,47 @@ async function normalizeApplicationOwner(app, user) {
     return app;
 }
 
+function normalizeEmergencyContacts(raw) {
+    if (Array.isArray(raw)) return raw;
+    if (raw && typeof raw === 'object') return [raw];
+    return [];
+}
+
+function normalizeAddress(raw) {
+    if (!raw || typeof raw !== 'object') return undefined;
+    return {
+        AddressLine1: raw.AddressLine1 || raw.street || '',
+        AddressLine2: raw.AddressLine2 || raw.apt || '',
+        City: raw.City || raw.city || '',
+        State: raw.State || raw.state || '',
+        ZipCode: raw.ZipCode || raw.zip || '',
+        Country: raw.Country || raw.country || '',
+    };
+}
+
+function normalizeWorkAuth(raw) {
+    if (!raw || typeof raw !== 'object') return undefined;
+    const isCitizenOrPR = raw.isCitizenOrPR === true || String(raw.isCitizenOrPR).toLowerCase() === 'true';
+    const citizenOrGreenCardRaw = String(raw.citizenOrGreenCard || '').trim();
+    const visaTypeRaw = String(raw.visaType || raw.type || '').trim();
+    const otherVisaTitleRaw = String(raw.otherVisaTitle || raw.otherTitle || '').trim();
+
+    const citizenOrGreenCard = (() => {
+        if (!isCitizenOrPR) return null;
+        if (citizenOrGreenCardRaw === 'Citizen') return 'Citizen';
+        if (citizenOrGreenCardRaw === 'Green Card') return 'Green Card';
+        return null;
+    })();
+
+    return {
+        ...raw,
+        isCitizenOrPR,
+        citizenOrGreenCard,
+        visaType: isCitizenOrPR ? '' : visaTypeRaw,
+        otherVisaTitle: isCitizenOrPR ? '' : otherVisaTitleRaw,
+    };
+}
+
 
 // Get the current user's onboarding application
 exports.getMyApplication = async (req, res, next) => {
@@ -54,7 +95,7 @@ exports.createOrUpdateMyApplication = async (req, res, next) => {
             User: req.user.id,
             email: req.user.email,
             status: "in_progress",
-            emergencyContact: [{ firstName: '', lastName: '', relationship: '', phone: '' }],
+            emergencyContact: [],
         });
         res.status(201).json(app);
     } catch (err) {
@@ -72,7 +113,7 @@ exports.updateMyOnboardingApplication = async (req, res, next) => {
                 User: req.user.id,
                 email: req.user.email,
                 status: "in_progress",
-                emergencyContact: [{ firstName: '', lastName: '', relationship: '', phone: '' }],
+                emergencyContact: [],
             });
         }
 
@@ -85,10 +126,14 @@ exports.updateMyOnboardingApplication = async (req, res, next) => {
         delete payload.status;
         delete payload.action;
 
-        if (payload.emergencyContact) {
-            payload.emergencyContact = Array.isArray(payload.emergencyContact)
-                ? payload.emergencyContact
-                : [payload.emergencyContact];
+        if (Object.prototype.hasOwnProperty.call(payload, 'address')) {
+            payload.address = normalizeAddress(payload.address);
+        }
+        if (Object.prototype.hasOwnProperty.call(payload, 'emergencyContact')) {
+            payload.emergencyContact = normalizeEmergencyContacts(payload.emergencyContact);
+        }
+        if (Object.prototype.hasOwnProperty.call(payload, 'workAuth')) {
+            payload.workAuth = normalizeWorkAuth(payload.workAuth);
         }
 
         Object.assign(app, payload);
@@ -104,6 +149,7 @@ exports.updateMyOnboardingApplication = async (req, res, next) => {
         await app.save();
         res.json(app);
     } catch (err) {
+        console.error('updateMyOnboardingApplication error:', err);
         next(err);
     }
 }
@@ -126,7 +172,7 @@ exports.uploadOnboardingDoc = async (req, res, next) => {
                 User: req.user.id,
                 email: req.user.email,
                 status: "in_progress",
-                emergencyContact: [{ firstName: '', lastName: '', relationship: '', phone: '' }],
+                emergencyContact: [],
             });
         }
 

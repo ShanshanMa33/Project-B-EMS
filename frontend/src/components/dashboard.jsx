@@ -22,7 +22,7 @@ import MenuIcon from "@mui/icons-material/Menu";
 const drawerWidth = 260;
 
 //resuable dashboard layout using MUI components.
-const linkStyle = ({ isActive }) => ({
+const linkStyle = () => ({
     textDecoration: "none",
     color: "inherit",
     display: "block",
