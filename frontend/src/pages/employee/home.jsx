@@ -7,6 +7,7 @@ export default function EmployeeHome() {
     const navigate = useNavigate();
     const authUser = useSelector((s) => s.auth?.user);
     const profile = useSelector((s) => s.employeeProfile?.profile);
+    const onboarding = useSelector((s) => s.onboarding?.application);
 
     const fullName = useMemo(() => {
         const first = profile?.firstName || profile?.basicInfo?.firstName || authUser?.firstName || "";

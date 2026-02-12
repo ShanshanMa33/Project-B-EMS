@@ -69,12 +69,13 @@ const onboardingSchema = new mongoose.Schema({
     dob: { type: Date, default: null },
     workAuth: { type: WorkAuthSchema, default: () => ({}) },
     reference: { type: ReferenceSchema, default: () => ({}) },
-    emergencyContact: { type: EmergencyContactSchema, default: () => ({}) },
+    emergencyContact: { type: [EmergencyContactSchema], default: () => [] },
     uploadedDocs: { type: [UploadDocumentSchema], default: [] },
 
     // workflow status
     status: { type: String, enum: allowedStatues, default: 'in_progress' },
     rejectionFeedback: { type: String, default: '' },
+    approvedAt: { type: Date, default: null },
 }, { timestamps: true });
 
 onboardingSchema.pre('validate', function syncUserFields() {

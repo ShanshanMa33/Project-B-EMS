@@ -10,7 +10,7 @@ export const signIn = createAsyncThunk("auth/signin", async (payload, thunkAPI) 
         });
         return response.data;
     } catch (error) {
-        return thunkAPI.rejectWithValue(error.response.data || { message: "Sign-in failed" });
+        return thunkAPI.rejectWithValue(error.response?.data || { message: "Sign-in failed" });
     }
 });
 
@@ -70,7 +70,7 @@ const authSlice = createSlice({
             // Handle sign-in failure
             .addCase(signIn.rejected, (state, action) => {
                 state.loading = false;
-                state.error = action.payload.message || "Sign-in failed";
+                state.error = action.payload?.message || action.error?.message || "Sign-in failed";
             })
             // Handle fetching current user info
             .addCase(fetchCurrentUser.fulfilled, (state, action) => {
